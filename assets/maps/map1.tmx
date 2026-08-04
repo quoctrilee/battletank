@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.10.0" orientation="orthogonal" renderorder="right-down"
+     width="40" height="40" tilewidth="48" tileheight="48" infinite="0"
+     nextlayerid="5" nextobjectid="100">
+
+ <!--
+   Battle Tank — Map 1: Training Ground
+   40x40 tiles @ 48px each = 1920x1920px world
+
+   Tiled uses y-down. LibGDX uses y-up.
+   MapManager.java handles the coordinate conversion.
+
+   Layout (Tiled row numbers, y-down):
+     Row  0     : Top border wall
+     Row  1-9   : Area A  (player spawn + 4 enemies)
+     Row 10     : Divider wall A/B  (door gap at cols 18-21)
+     Row 11-21  : Area B  (5 enemies)
+     Row 22     : Divider wall B/C  (door gap at cols 18-21)
+     Row 23-31  : Area C  (6 enemies)
+     Row 32     : Boss Door row (gap at cols 17-22)
+     Row 33-39  : Boss Room (boss spawn at col 20, row 36)
+ -->
+
+ <!-- ════════════════════════════════════════════════════════
+      COLLISION LAYER — solid wall rectangles
+      Positions are in Tiled pixel coords (y-down, origin top-left).
+      MapManager converts these to LibGDX world coords (y-up).
+      ════════════════════════════════════════════════════════ -->
+ <objectgroup id="1" name="CollisionLayer">
+  <!-- Border walls -->
+  <object id="1"  x="0"    y="0"    width="1920" height="48"/>   <!-- top -->
+  <object id="2"  x="0"    y="1872" width="1920" height="48"/>   <!-- bottom -->
+  <object id="3"  x="0"    y="48"   width="48"   height="1824"/> <!-- left -->
+  <object id="4"  x="1872" y="48"   width="48"   height="1824"/> <!-- right -->
+
+  <!-- Area A internal obstacles -->
+  <object id="5"  x="240"  y="144"  width="192"  height="96"/>   <!-- rows 3-4, cols 5-8 -->
+  <object id="6"  x="1488" y="240"  width="240"  height="144"/>  <!-- rows 5-7, cols 31-35 -->
+
+  <!-- Divider A/B (row 10) — cols 1-17 and cols 22-38 (gap = cols 18-21) -->
+  <object id="7"  x="48"   y="480"  width="816"  height="48"/>
+  <object id="8"  x="1056" y="480"  width="816"  height="48"/>
+
+  <!-- Area B internal obstacles -->
+  <object id="9"  x="144"  y="624"  width="240"  height="144"/>  <!-- rows 13-15, cols 3-7 -->
+  <object id="10" x="1536" y="672"  width="240"  height="144"/>  <!-- rows 14-16, cols 32-36 -->
+  <object id="11" x="816"  y="864"  width="288"  height="144"/>  <!-- rows 18-20, cols 17-22 -->
+
+  <!-- Divider B/C (row 22) — cols 1-17 and cols 22-38 (gap = cols 18-21) -->
+  <object id="12" x="48"   y="1056" width="816"  height="48"/>
+  <object id="13" x="1056" y="1056" width="816"  height="48"/>
+
+  <!-- Area C internal obstacles -->
+  <object id="14" x="384"  y="1200" width="192"  height="144"/> <!-- rows 25-27, cols 8-11 -->
+  <object id="15" x="1344" y="1248" width="240"  height="144"/> <!-- rows 26-28, cols 28-32 -->
+
+  <!-- Boss Door row (row 32) — cols 1-16 and cols 23-38 (gap = cols 17-22) -->
+  <object id="16" x="48"   y="1536" width="768"  height="48"/>
+  <object id="17" x="1104" y="1536" width="768"  height="48"/>
+ </objectgroup>
+
+ <!-- ════════════════════════════════════════════════════════
+      DOORS LAYER — passable gaps that close/open during play
+      Object name = the areaId whose clearing opens this door.
+        "A"    → door between Area A and B
+        "B"    → door between Area B and C
+        "BOSS" → boss room entrance
+      ════════════════════════════════════════════════════════ -->
+ <objectgroup id="2" name="Doors">
+  <object id="60" name="A"    x="864" y="480"  width="192" height="48"/>
+  <object id="61" name="B"    x="864" y="1056" width="192" height="48"/>
+  <object id="62" name="BOSS" x="816" y="1536" width="288" height="48"/>
+ </objectgroup>
+
+ <!-- ════════════════════════════════════════════════════════
+      AREA TRIGGERS — rectangular zones for area progression
+      Object name = areaId used by AreaManager.
+      ════════════════════════════════════════════════════════ -->
+ <objectgroup id="3" name="AreaTriggers">
+  <object id="50" name="A"    x="0" y="0"    width="1920" height="480"/>
+  <object id="51" name="B"    x="0" y="480"  width="1920" height="576"/>
+  <object id="52" name="C"    x="0" y="1056" width="1920" height="480"/>
+  <object id="53" name="BOSS" x="0" y="1536" width="1920" height="384"/>
+ </objectgroup>
+
+ <!-- ════════════════════════════════════════════════════════
+      SPAWN POINTS — 1x1 rectangle objects (treated as points)
+      player_spawn  : player start position
+      enemy_X_N     : enemy N in area X  (property areaId = X)
+      boss_spawn    : boss center / circle-orbit origin
+      ════════════════════════════════════════════════════════ -->
+ <objectgroup id="4" name="SpawnPoints">
+
+  <!-- Player -->
+  <object id="20" name="player_spawn" x="264" y="264" width="1" height="1"/>
+
+  <!-- Area A enemies (4 enemies) -->
+  <object id="21" name="enemy_a_1" x="744"  y="168" width="1" height="1">
+   <properties><property name="areaId" value="A"/></properties>
+  </object>
+  <object id="22" name="enemy_a_2" x="1464" y="312" width="1" height="1">
+   <properties><property name="areaId" value="A"/></properties>
+  </object>
+  <object id="23" name="enemy_a_3" x="504"  y="360" width="1" height="1">
+   <properties><property name="areaId" value="A"/></properties>
+  </object>
+  <object id="24" name="enemy_a_4" x="1224" y="120" width="1" height="1">
+   <properties><property name="areaId" value="A"/></properties>
+  </object>
+
+  <!-- Area B enemies (5 enemies) -->
+  <object id="25" name="enemy_b_1" x="408"  y="696"  width="1" height="1">
+   <properties><property name="areaId" value="B"/></properties>
+  </object>
+  <object id="26" name="enemy_b_2" x="984"  y="744"  width="1" height="1">
+   <properties><property name="areaId" value="B"/></properties>
+  </object>
+  <object id="27" name="enemy_b_3" x="1464" y="648"  width="1" height="1">
+   <properties><property name="areaId" value="B"/></properties>
+  </object>
+  <object id="28" name="enemy_b_4" x="600"  y="936"  width="1" height="1">
+   <properties><property name="areaId" value="B"/></properties>
+  </object>
+  <object id="29" name="enemy_b_5" x="1224" y="984"  width="1" height="1">
+   <properties><property name="areaId" value="B"/></properties>
+  </object>
+
+  <!-- Area C enemies (6 enemies) -->
+  <object id="30" name="enemy_c_1" x="312"  y="1176" width="1" height="1">
+   <properties><property name="areaId" value="C"/></properties>
+  </object>
+  <object id="31" name="enemy_c_2" x="696"  y="1272" width="1" height="1">
+   <properties><property name="areaId" value="C"/></properties>
+  </object>
+  <object id="32" name="enemy_c_3" x="1080" y="1176" width="1" height="1">
+   <properties><property name="areaId" value="C"/></properties>
+  </object>
+  <object id="33" name="enemy_c_4" x="1464" y="1368" width="1" height="1">
+   <properties><property name="areaId" value="C"/></properties>
+  </object>
+  <object id="34" name="enemy_c_5" x="504"  y="1416" width="1" height="1">
+   <properties><property name="areaId" value="C"/></properties>
+  </object>
+  <object id="35" name="enemy_c_6" x="1704" y="1224" width="1" height="1">
+   <properties><property name="areaId" value="C"/></properties>
+  </object>
+
+  <!-- Boss -->
+  <object id="36" name="boss_spawn" x="984" y="1752" width="1" height="1"/>
+
+ </objectgroup>
+
+</map>
