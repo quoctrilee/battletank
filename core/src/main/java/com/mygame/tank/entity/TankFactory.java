@@ -4,10 +4,11 @@ import com.mygame.tank.config.GameConfig;
 import com.mygame.tank.controller.ai.BossController;
 import com.mygame.tank.controller.ai.EnemyController;
 import com.mygame.tank.controller.player.PlayerController;
+import com.mygame.tank.entity.component.turret.EnemyTurretComponent;
 import com.mygame.tank.entity.component.HealthComponent;
 import com.mygame.tank.entity.component.MovementComponent;
+import com.mygame.tank.entity.component.turret.PlayerTurretComponent;
 import com.mygame.tank.entity.component.TankStats;
-import com.mygame.tank.entity.component.TurretComponent;
 import com.mygame.tank.weapon.WeaponSystem;
 
 /**
@@ -35,8 +36,8 @@ public final class TankFactory {
                 x, y, stats.width, stats.height,
                 stats.maxSpeed, stats.acceleration, stats.deceleration);
         // Player turret uses WeaponSystem; its combat stats live inside WeaponSystem
-        TurretComponent   turret   = new TurretComponent(0.6f, new WeaponSystem());
-        PlayerController  ctrl     = new PlayerController();
+        PlayerTurretComponent turret = new PlayerTurretComponent(0.6f, new WeaponSystem());
+        PlayerController      ctrl   = new PlayerController();
 
         return new Tank(health, movement, turret, ctrl, stats, null);
     }
@@ -54,12 +55,12 @@ public final class TankFactory {
         MovementComponent movement = new MovementComponent(
                 x, y, stats.width, stats.height, stats.maxSpeed, 0f, 0f);
         // Enemy turret owns its own combat stats
-        TurretComponent   turret   = new TurretComponent(
+        EnemyTurretComponent turret = new EnemyTurretComponent(
                 GameConfig.ENEMY_BASIC_FIRE_RATE,
                 GameConfig.ENEMY_BASIC_BULLET_SPEED,
                 GameConfig.ENEMY_BASIC_DAMAGE,
                 0.6f, Projectile.Owner.ENEMY);
-        EnemyController   ctrl     = new EnemyController();
+        EnemyController      ctrl   = new EnemyController();
 
         return new Tank(health, movement, turret, ctrl, stats, areaId);
     }
@@ -76,12 +77,12 @@ public final class TankFactory {
         MovementComponent movement = new MovementComponent(
                 x, y, stats.width, stats.height, 0f, 0f, 0f);
         // Boss turret owns spread-shot stats
-        TurretComponent   turret   = new TurretComponent(
+        EnemyTurretComponent turret = new EnemyTurretComponent(
                 GameConfig.BOSS_SPREAD_FIRE_RATE,
                 GameConfig.BOSS_BULLET_SPEED,
                 GameConfig.BOSS_BULLET_DAMAGE,
                 1.2f, Projectile.Owner.BOSS);
-        BossController    ctrl     = new BossController(x, y);
+        BossController       ctrl   = new BossController(x, y);
 
         return new Tank(health, movement, turret, ctrl, stats, "BOSS");
     }

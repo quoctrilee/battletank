@@ -5,6 +5,7 @@ import com.mygame.tank.controller.TankController;
 import com.mygame.tank.controller.UpdateContext;
 import com.mygame.tank.entity.Projectile;
 import com.mygame.tank.entity.Tank;
+import com.mygame.tank.entity.component.turret.EnemyTurretComponent;
 
 import java.util.Collections;
 import java.util.List;
@@ -104,7 +105,7 @@ public class EnemyController implements TankController {
                         return Collections.emptyList();
                     }
 
-                    return tank.getTurret().tryFireAt(
+                    return ((EnemyTurretComponent) tank.getTurret()).tryFireAt(
                         tank.getMovement().getPosition(),
                         ctx.playerPos,
                         tank.getStats().height);

@@ -6,6 +6,7 @@ import com.mygame.tank.controller.TankController;
 import com.mygame.tank.controller.UpdateContext;
 import com.mygame.tank.entity.Projectile;
 import com.mygame.tank.entity.Tank;
+import com.mygame.tank.entity.component.turret.PlayerTurretComponent;
 import com.mygame.tank.weapon.WeaponSystem;
 
 import java.util.Collections;
@@ -36,22 +37,23 @@ public class PlayerController implements TankController {
         if (tank.isStunned()) return Collections.emptyList();
 
         PlayerInput input = ctx.playerInput;
+        PlayerTurretComponent turret = (PlayerTurretComponent) tank.getTurret();
 
-        handleHubInput(tank, input);
+        handleHubInput(turret, input);
 
         // Fix: Pass UpdateContext so equipment results are merged into pending lists
-        handleEquipmentInput(tank, input, ctx);
+        handleEquipmentInput(turret, input, ctx, tank);
 
         // Only move if hub is closed
-        if (!tank.getTurret().isHubOpen()) {
+        if (!turret.isHubOpen()) {
             updateBody(tank, delta, input);
         }
 
-        updateTurret(tank, input);
-        tank.getTurret().update(delta);
+        updateTurret(tank, turret, input);
+        turret.update(delta);
 
         // Fire — returns FireResult; push beams & effects to context
-        WeaponSystem.FireResult result = tank.getTurret().tryFirePlayer(
+        WeaponSystem.FireResult result = turret.tryFire(
             tank.getMovement().getPosition(),
             tank.getStats().height,
             input.fire,
@@ -66,25 +68,26 @@ public class PlayerController implements TankController {
 
     // ─── Hub ─────────────────────────────────────────────────────────────────
 
-    private void handleHubInput(Tank tank, PlayerInput input) {
+    private void handleHubInput(PlayerTurretComponent turret, PlayerInput input) {
         if (input.toggleHub) {
-            tank.getTurret().toggleHub();
+            turret.toggleHub();
         }
-        if (input.hubSelectSlot >= 0 && tank.getTurret().isHubOpen()) {
-            WeaponSystem ws = tank.getTurret().getWeaponSystem();
+        if (input.hubSelectSlot >= 0 && turret.isHubOpen()) {
+            WeaponSystem ws = turret.getWeaponSystem();
             if (ws != null) ws.selectWeaponInHub(input.hubSelectSlot);
         }
     }
 
     // ─── Equipment ───────────────────────────────────────────────────────────
 
-    private void handleEquipmentInput(Tank tank, PlayerInput input, UpdateContext ctx) {
+    private void handleEquipmentInput(PlayerTurretComponent turret, PlayerInput input,
+                                      UpdateContext ctx, Tank tank) {
         WeaponSystem.FireResult result = WeaponSystem.FireResult.EMPTY;
 
-        if (input.useEquip1) result = tank.getTurret().useEquipment(0, tank);
-        else if (input.useEquip2) result = tank.getTurret().useEquipment(1, tank);
-        else if (input.useEquip3) result = tank.getTurret().useEquipment(2, tank);
-        else if (input.useEquip4) result = tank.getTurret().useEquipment(3, tank);
+        if (input.useEquip1) result = turret.useEquipment(0, tank);
+        else if (input.useEquip2) result = turret.useEquipment(1, tank);
+        else if (input.useEquip3) result = turret.useEquipment(2, tank);
+        else if (input.useEquip4) result = turret.useEquipment(3, tank);
 
         // Push all equipment output entities to UpdateContext
         if (result != WeaponSystem.FireResult.EMPTY) {
@@ -107,11 +110,11 @@ public class PlayerController implements TankController {
 
     // ─── Turret Aim ───────────────────────────────────────────────────────────
 
-    private void updateTurret(Tank tank, PlayerInput input) {
+    private void updateTurret(Tank tank, PlayerTurretComponent turret, PlayerInput input) {
         Vector2 pos = tank.getMovement().getPosition();
         float angle = MathUtils.atan2(input.mouseWorldY - pos.y,
             input.mouseWorldX - pos.x)
             * MathUtils.radiansToDegrees;
-        tank.getTurret().aimAtAngle(angle);
+        turret.aimAtAngle(angle);
     }
 }

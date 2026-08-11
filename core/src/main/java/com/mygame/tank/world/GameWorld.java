@@ -13,6 +13,7 @@ import com.mygame.tank.entity.Tank;
 import com.mygame.tank.entity.TankFactory;
 import com.mygame.tank.entity.VisualEffect;
 import com.mygame.tank.entity.WorldEffect;
+import com.mygame.tank.entity.component.turret.PlayerTurretComponent;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -588,7 +589,6 @@ public class GameWorld {
     }
 
     public boolean isPlayerHubOpen() {
-        return player.getTurret().getWeaponSystem() != null
-            && player.getTurret().getWeaponSystem().isHubOpen();
+        return ((PlayerTurretComponent) player.getTurret()).isHubOpen();
     }
 }

@@ -18,6 +18,7 @@ import com.mygame.tank.entity.Projectile;
 import com.mygame.tank.entity.Tank;
 import com.mygame.tank.entity.VisualEffect;
 import com.mygame.tank.entity.WorldEffect;
+import com.mygame.tank.entity.component.turret.PlayerTurretComponent;
 import com.mygame.tank.weapon.EquipmentType;
 import com.mygame.tank.weapon.WeaponSystem;
 import com.mygame.tank.weapon.WeaponType;
@@ -552,7 +553,7 @@ public class GameRenderer {
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
         Tank player = world.getPlayer();
-        WeaponSystem ws = player.getTurret().getWeaponSystem();
+        WeaponSystem ws = ((PlayerTurretComponent) player.getTurret()).getWeaponSystem();
 
         renderHpBar(player, sh);
         renderWeaponSlots(ws, sw, sh);

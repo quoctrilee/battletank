@@ -12,7 +12,7 @@ package com.mygame.tank.entity.component;
  */
 public final class HealthComponent {
 
-    private float   hp;
+    private float hp;
     private final float maxHp;
     private boolean alive;
 
@@ -23,27 +23,32 @@ public final class HealthComponent {
     private float empTimer;        // seconds special weapons are disabled
 
     public HealthComponent(float maxHp) {
-        this.maxHp     = maxHp;
-        this.hp        = maxHp;
-        this.alive     = true;
+        this.maxHp = maxHp;
+        this.hp = maxHp;
+        this.alive = true;
         this.stunTimer = 0f;
-        this.empTimer  = 0f;
+        this.empTimer = 0f;
     }
 
     // ─── Update ───────────────────────────────────────────────────────────────
 
     public void update(float delta) {
         if (stunTimer > 0f) stunTimer = Math.max(0f, stunTimer - delta);
-        if (empTimer  > 0f) empTimer  = Math.max(0f, empTimer  - delta);
+        if (empTimer > 0f) empTimer = Math.max(0f, empTimer - delta);
     }
 
     // ─── Damage ───────────────────────────────────────────────────────────────
 
-    /** Apply damage. Clamps HP to 0 and marks dead when depleted. */
+    /**
+     * Apply damage. Clamps HP to 0 and marks dead when depleted.
+     */
     public void takeDamage(float amount) {
         if (!alive) return;
         hp -= amount;
-        if (hp <= 0f) { hp = 0f; alive = false; }
+        if (hp <= 0f) {
+            hp = 0f;
+            alive = false;
+        }
     }
 
     // ─── Stun ─────────────────────────────────────────────────────────────────
@@ -56,10 +61,16 @@ public final class HealthComponent {
         if (stunTimer < duration) stunTimer = duration;
     }
 
-    /** True while this tank is stunned (cannot move or fire). */
-    public boolean isStunned() { return stunTimer > 0f; }
+    /**
+     * True while this tank is stunned (cannot move or fire).
+     */
+    public boolean isStunned() {
+        return stunTimer > 0f;
+    }
 
-    public float   getStunTimer()   { return stunTimer; }
+    public float getStunTimer() {
+        return stunTimer;
+    }
 
     // ─── EMP ─────────────────────────────────────────────────────────────────
 
@@ -71,11 +82,23 @@ public final class HealthComponent {
         if (empTimer < duration) empTimer = duration;
     }
 
-    /** True while this tank's special weapons are EMP-suppressed. */
-    public boolean isEmpSuppressed() { return empTimer > 0f; }
+    /**
+     * True while this tank's special weapons are EMP-suppressed.
+     */
+    public boolean isEmpSuppressed() {
+        return empTimer > 0f;
+    }
 
     // ─── Getters ─────────────────────────────────────────────────────────────
-    public boolean isAlive()  { return alive; }
-    public float   getHp()    { return hp; }
-    public float   getMaxHp() { return maxHp; }
+    public boolean isAlive() {
+        return alive;
+    }
+
+    public float getHp() {
+        return hp;
+    }
+
+    public float getMaxHp() {
+        return maxHp;
+    }
 }
