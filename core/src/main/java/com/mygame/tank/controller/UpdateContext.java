@@ -6,6 +6,7 @@ import com.mygame.tank.entity.LaserBeam;
 import com.mygame.tank.entity.VisualEffect;
 import com.mygame.tank.entity.WorldEffect;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -49,25 +50,9 @@ public final class UpdateContext {
      */
     public final PlayerInput playerInput;
 
-    /**
-     * Mutable output list — PlayerController appends laser beams here so
-     * GameWorld can collect them without a separate call-chain.
-     * Null for enemy/boss contexts.
-     */
-    public final List<LaserBeam> pendingBeams;
-
-    /**
-     * Mutable output list — PlayerController appends world effects (smoke, mine, etc.)
-     * here for GameWorld to collect.
-     * Null for enemy/boss contexts.
-     */
-    public final List<WorldEffect> pendingEffects;
-
-    /**
-     * Mutable output list — PlayerController appends visual effects here.
-     * Null for enemy/boss contexts.
-     */
-    public final List<VisualEffect> pendingVfx;
+    private final List<LaserBeam> pendingBeams;
+    private final List<WorldEffect> pendingEffects;
+    private final List<VisualEffect> pendingVfx;
 
     // ─── Constructors ─────────────────────────────────────────────────────────
 
@@ -96,9 +81,9 @@ public final class UpdateContext {
         this.areaActive = areaActive;
         this.playerInSmoke = playerInSmoke;
         this.playerInput = null;
-        this.pendingBeams = null;
-        this.pendingEffects = null;
-        this.pendingVfx = null;
+        this.pendingBeams = new ArrayList<>();
+        this.pendingEffects = new ArrayList<>();
+        this.pendingVfx = new ArrayList<>();
     }
 
     /**
@@ -116,5 +101,29 @@ public final class UpdateContext {
         this.pendingBeams = pendingBeams;
         this.pendingEffects = pendingEffects;
         this.pendingVfx = pendingVfx;
+    }
+
+    public void addLaserBeams(List<LaserBeam> beams) {
+        pendingBeams.addAll(beams);
+    }
+
+    public void addWorldEffects(List<WorldEffect> effects) {
+        pendingEffects.addAll(effects);
+    }
+
+    public void addVisualEffects(List<VisualEffect> effects) {
+        pendingVfx.addAll(effects);
+    }
+
+    public List<LaserBeam> getPendingBeams() {
+        return pendingBeams;
+    }
+
+    public List<WorldEffect> getPendingEffects() {
+        return pendingEffects;
+    }
+
+    public List<VisualEffect> getPendingVfx() {
+        return pendingVfx;
     }
 }

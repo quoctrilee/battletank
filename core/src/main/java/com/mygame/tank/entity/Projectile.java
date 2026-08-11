@@ -23,7 +23,7 @@ public class Projectile {
 
     // ─── Types ────────────────────────────────────────────────────────────────
 
-    public enum Owner {PLAYER, ENEMY}
+    public enum Owner {PLAYER, ENEMY, BOSS}
 
     public enum ProjectileType {
         NORMAL,

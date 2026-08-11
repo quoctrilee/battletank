@@ -7,7 +7,6 @@ import com.mygame.tank.config.GameConfig;
 import com.mygame.tank.controller.UpdateContext;
 import com.mygame.tank.controller.ai.BossController;
 import com.mygame.tank.controller.player.PlayerInput;
-import com.mygame.tank.controller.player.PlayerInputHandler;
 import com.mygame.tank.entity.LaserBeam;
 import com.mygame.tank.entity.Projectile;
 import com.mygame.tank.entity.Tank;
@@ -39,9 +38,6 @@ public class GameWorld {
     private final CollisionSystem collision;
     private GameState gameState;
 
-    // ─── Reference to InputHandler for hub-sync ───────────────────────────────
-    private PlayerInputHandler inputHandler;
-
     // ─── Constructor ─────────────────────────────────────────────────────────
 
     public GameWorld(MapManager mapManager) {
@@ -60,13 +56,6 @@ public class GameWorld {
         this.player = TankFactory.createPlayer(spawn.x, spawn.y);
 
         spawnAllEnemies();
-    }
-
-    /**
-     * Inject the InputHandler so GameWorld can sync hub state to it.
-     */
-    public void setInputHandler(PlayerInputHandler handler) {
-        this.inputHandler = handler;
     }
 
     private void spawnAllEnemies() {
@@ -114,13 +103,6 @@ public class GameWorld {
         laserBeams.addAll(pendingBeams);
         worldEffects.addAll(pendingEffects);
         visualEffects.addAll(pendingVfx);
-
-        // Sync hub state to InputHandler for 1/2/3 disambiguation
-        if (inputHandler != null) {
-            boolean hubOpen = player.getTurret().getWeaponSystem() != null
-                && player.getTurret().getWeaponSystem().isHubOpen();
-            inputHandler.setHubOpen(hubOpen);
-        }
 
         // Assign homing targets for newly fired missiles
         for (Projectile p : shots) {
@@ -603,5 +585,10 @@ public class GameWorld {
 
     public GameState getGameState() {
         return gameState;
+    }
+
+    public boolean isPlayerHubOpen() {
+        return player.getTurret().getWeaponSystem() != null
+            && player.getTurret().getWeaponSystem().isHubOpen();
     }
 }

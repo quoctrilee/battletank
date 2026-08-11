@@ -30,9 +30,9 @@ public class GameScreen implements Screen {
     private final OrthographicCamera camera;
     private final PlayerInputHandler inputHandler;
     private final MapManager mapManager;
-    private GameWorld world;
     private final GameRenderer gameRenderer;
     private final DebugRenderer debugRenderer;
+    private GameWorld world;
 
     public GameScreen() {
         camera = new OrthographicCamera();
@@ -41,16 +41,15 @@ public class GameScreen implements Screen {
         mapManager = new MapManager();
         mapManager.load("maps/map1.tmx");
 
-        world = new GameWorld(mapManager);
-
         gameRenderer = new GameRenderer();
         debugRenderer = new DebugRenderer(GameConfig.DEBUG_DEFAULT);
         inputHandler = new PlayerInputHandler();
-        world.setInputHandler(inputHandler);
     }
 
     @Override
     public void render(float delta) {
+        ensureWorld();
+
         // Clear screen
         Gdx.gl.glClearColor(0.05f, 0.05f, 0.05f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
@@ -64,6 +63,7 @@ public class GameScreen implements Screen {
 
         // Update gameplay
         world.update(delta, input);
+        syncInputHandlerState();
 
         // Camera follows player
         updateCamera();
@@ -88,9 +88,7 @@ public class GameScreen implements Screen {
     }
 
     private void restartGame() {
-        // Reuse the same mapManager (map data doesn't change)
-        world = new GameWorld(mapManager);
-        world.setInputHandler(inputHandler);
+        createWorld();
     }
 
     @Override
@@ -101,6 +99,7 @@ public class GameScreen implements Screen {
 
     @Override
     public void show() {
+        ensureWorld();
     }
 
     @Override
@@ -120,5 +119,22 @@ public class GameScreen implements Screen {
         mapManager.dispose();
         gameRenderer.dispose();
         debugRenderer.dispose();
+    }
+
+    private void ensureWorld() {
+        if (world == null) {
+            createWorld();
+        }
+    }
+
+    private void createWorld() {
+        world = new GameWorld(mapManager);
+        syncInputHandlerState();
+    }
+
+    private void syncInputHandlerState() {
+        if (world != null) {
+            inputHandler.setHubOpen(world.isPlayerHubOpen());
+        }
     }
 }

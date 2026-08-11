@@ -10,8 +10,8 @@ public final class GameConfig {
 
     // ─── Map ──────────────────────────────────────────────────────────────────
     public static final int MAP_TILE_SIZE = 48;
-    public static final int MAP_COLS = 40;
-    public static final int MAP_ROWS = 40;
+    public static final int MAP_COLS = 60;
+    public static final int MAP_ROWS = 60;
     public static final float MAP_WIDTH = MAP_COLS * MAP_TILE_SIZE;   // 1920 px
     public static final float MAP_HEIGHT = MAP_ROWS * MAP_TILE_SIZE;   // 1920 px
 
@@ -42,8 +42,8 @@ public final class GameConfig {
 
     // DEFAULT_BULLET — Basic single-shot cannon (Mid-range combat)
     public static final float DEFAULT_DAMAGE = 20f;
-    public static final float DEFAULT_FIRE_RATE = 0.35f;  // Seconds between shots
-    public static final float DEFAULT_SPEED = 420f;   // px/s
+    public static final float DEFAULT_FIRE_RATE = 0.9f;  // Seconds between shots
+    public static final float DEFAULT_SPEED = 250f;   // px/s
     public static final float DEFAULT_LIFETIME = 0.8f;   // Effective Range = 420 * 0.8 = 336px (~7 tiles)
     public static final int DEFAULT_MAX_AMMO = -1;     // -1 = unlimited
 

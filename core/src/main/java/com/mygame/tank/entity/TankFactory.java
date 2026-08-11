@@ -58,7 +58,7 @@ public final class TankFactory {
                 GameConfig.ENEMY_BASIC_FIRE_RATE,
                 GameConfig.ENEMY_BASIC_BULLET_SPEED,
                 GameConfig.ENEMY_BASIC_DAMAGE,
-                0.6f);
+                0.6f, Projectile.Owner.ENEMY);
         EnemyController   ctrl     = new EnemyController();
 
         return new Tank(health, movement, turret, ctrl, stats, areaId);
@@ -80,7 +80,7 @@ public final class TankFactory {
                 GameConfig.BOSS_SPREAD_FIRE_RATE,
                 GameConfig.BOSS_BULLET_SPEED,
                 GameConfig.BOSS_BULLET_DAMAGE,
-                0.6f);
+                1.2f, Projectile.Owner.BOSS);
         BossController    ctrl     = new BossController(x, y);
 
         return new Tank(health, movement, turret, ctrl, stats, "BOSS");

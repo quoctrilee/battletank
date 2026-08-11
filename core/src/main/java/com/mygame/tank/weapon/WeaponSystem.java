@@ -246,7 +246,12 @@ public class WeaponSystem {
         shots.add(Projectile.normal(ox, oy, dx, dy,
             GameConfig.DEFAULT_SPEED, GameConfig.DEFAULT_DAMAGE,
             Projectile.Owner.PLAYER, GameConfig.DEFAULT_LIFETIME));
-        return new FireResult(shots, Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+            
+        List<VisualEffect> vfx = new ArrayList<>(1);
+        float angle = MathUtils.atan2(dy, dx) * MathUtils.radiansToDegrees;
+        vfx.add(VisualEffect.muzzleFlash(ox, oy, angle, com.badlogic.gdx.graphics.Color.WHITE));
+        
+        return new FireResult(shots, Collections.emptyList(), Collections.emptyList(), vfx);
     }
 
     private FireResult fireSMG(float ox, float oy, float dx, float dy, boolean fireHeld) {
@@ -268,7 +273,11 @@ public class WeaponSystem {
         shots.add(Projectile.normal(ox, oy, sx, sy,
             GameConfig.SMG_SPEED, GameConfig.SMG_DAMAGE,
             Projectile.Owner.PLAYER, GameConfig.SMG_LIFETIME));
-        return new FireResult(shots, Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+        List<VisualEffect> vfx = new ArrayList<>(1);
+        float angle = MathUtils.atan2(dy, dx) * MathUtils.radiansToDegrees;
+        vfx.add(VisualEffect.muzzleFlash(ox, oy, angle, com.badlogic.gdx.graphics.Color.WHITE));
+        
+        return new FireResult(shots, Collections.emptyList(), Collections.emptyList(), vfx);
     }
 
     private FireResult fireArmorPierce(float ox, float oy, float dx, float dy) {
@@ -278,7 +287,11 @@ public class WeaponSystem {
             GameConfig.AP_SPEED, GameConfig.AP_DAMAGE,
             Projectile.Owner.PLAYER, GameConfig.AP_LIFETIME,
             GameConfig.AP_MAX_PIERCE, GameConfig.AP_DAMAGE_FALLOFF));
-        return new FireResult(shots, Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+        List<VisualEffect> vfx = new ArrayList<>(1);
+        float angle = MathUtils.atan2(dy, dx) * MathUtils.radiansToDegrees;
+        vfx.add(VisualEffect.muzzleFlash(ox, oy, angle, com.badlogic.gdx.graphics.Color.WHITE));
+
+        return new FireResult(shots, Collections.emptyList(), Collections.emptyList(), vfx);
     }
 
     private FireResult fireCannon(float ox, float oy, float dx, float dy) {
@@ -288,7 +301,11 @@ public class WeaponSystem {
             GameConfig.CANNON_SPEED, GameConfig.CANNON_DIRECT_DAMAGE,
             Projectile.Owner.PLAYER, GameConfig.CANNON_LIFETIME,
             GameConfig.CANNON_AOE_RADIUS));
-        return new FireResult(shots, Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+        List<VisualEffect> vfx = new ArrayList<>(1);
+        float angle = MathUtils.atan2(dy, dx) * MathUtils.radiansToDegrees;
+        vfx.add(VisualEffect.muzzleFlash(ox, oy, angle, com.badlogic.gdx.graphics.Color.WHITE));
+
+        return new FireResult(shots, Collections.emptyList(), Collections.emptyList(), vfx);
     }
 
     private FireResult fireStunShell(float ox, float oy, float dx, float dy) {
@@ -298,7 +315,11 @@ public class WeaponSystem {
             GameConfig.STUN_SPEED, GameConfig.STUN_DAMAGE,
             Projectile.Owner.PLAYER, GameConfig.STUN_LIFETIME,
             GameConfig.STUN_AOE_RADIUS, GameConfig.STUN_DURATION));
-        return new FireResult(shots, Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+        List<VisualEffect> vfx = new ArrayList<>(1);
+        float angle = MathUtils.atan2(dy, dx) * MathUtils.radiansToDegrees;
+        vfx.add(VisualEffect.muzzleFlash(ox, oy, angle, com.badlogic.gdx.graphics.Color.WHITE));
+
+        return new FireResult(shots, Collections.emptyList(), Collections.emptyList(), vfx);
     }
 
     private FireResult fireLaser(float ox, float oy, float dx, float dy) {
@@ -318,7 +339,11 @@ public class WeaponSystem {
             GameConfig.HOMING_SPEED, GameConfig.HOMING_DAMAGE,
             Projectile.Owner.PLAYER, GameConfig.HOMING_LIFETIME,
             GameConfig.HOMING_TURN_RATE_DEG));
-        return new FireResult(shots, Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+        List<VisualEffect> vfx = new ArrayList<>(1);
+        float angle = MathUtils.atan2(dy, dx) * MathUtils.radiansToDegrees;
+        vfx.add(VisualEffect.muzzleFlash(ox, oy, angle, com.badlogic.gdx.graphics.Color.WHITE));
+
+        return new FireResult(shots, Collections.emptyList(), Collections.emptyList(), vfx);
     }
 
     // ─── Equipment Activation ─────────────────────────────────────────────────

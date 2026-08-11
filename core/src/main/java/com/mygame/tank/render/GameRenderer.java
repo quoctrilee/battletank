@@ -3,11 +3,11 @@ package com.mygame.tank.render;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
@@ -77,17 +77,27 @@ public class GameRenderer {
 
     // ─── Rendering infrastructure ─────────────────────────────────────────────
     private final ShapeRenderer shapeRenderer;
+    /**
+     * SpriteBatch for world-space sprite rendering (tank bodies, projectiles).
+     */
+    private final SpriteBatch worldBatch;
     private final SpriteBatch hudBatch;
     private final BitmapFont font;
     private final GlyphLayout layout;
     private final OrthographicCamera hudCamera;
+    /**
+     * Loaded sprite textures / regions.
+     */
+    private final SpriteAssets assets;
 
     public GameRenderer() {
         shapeRenderer = new ShapeRenderer();
+        worldBatch = new SpriteBatch();
         hudBatch = new SpriteBatch();
         font = new BitmapFont();
         layout = new GlyphLayout();
         hudCamera = new OrthographicCamera();
+        assets = new SpriteAssets();
     }
 
     // ─── Entry point ──────────────────────────────────────────────────────────
@@ -107,25 +117,41 @@ public class GameRenderer {
 
     private void renderWorld(OrthographicCamera camera, GameWorld world) {
         shapeRenderer.setProjectionMatrix(camera.combined);
+        worldBatch.setProjectionMatrix(camera.combined);
 
+        // ── Pass 1: Shape-rendered elements (map, effects, enemies, boss) ────────
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         renderMapBackground(world);
         renderWorldEffects(world);
         renderEnemies(world);
-        renderBoss(world);
-        renderPlayer(world);
-        renderProjectiles(world);
+        renderNonDefaultProjectiles(world);   // AoE, stun, homing, AP, enemy bullets
         renderLaserBeams(world);
         shapeRenderer.end();
 
-        // 6. Draw Visual Effects (additive / above projectiles)
+        // ── Pass 2: Sprite-rendered elements (player body/turret, default bullets) ─
         Gdx.gl.glEnable(GL20.GL_BLEND);
-        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE); // additive blending
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        renderVisualEffects(world);
-        shapeRenderer.end();
-        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA); // restore normal blending
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        worldBatch.begin();
+        renderPlayerSprites(world);
+        renderBossSprites(world);
+        renderDefaultBulletSprites(world);
+        renderBossBulletSprites(world);
+        worldBatch.end();
 
+        // ── Pass 3: Visual effects (additive blending, above everything) ─────────
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
+        worldBatch.begin();
+        renderMuzzleFlashSprites(world);
+        worldBatch.end();
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        renderNonMuzzleVisualEffects(world);
+        shapeRenderer.end();
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+
+        // ── Pass 4: Health bars (normal blending, top layer in world space) ──────
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         renderHealthBars(world);
         shapeRenderer.end();
@@ -209,9 +235,115 @@ public class GameRenderer {
         }
     }
 
-    private void renderVisualEffects(GameWorld world) {
+    // ─── Sprite-based player rendering ───────────────────────────────────────
+
+    /**
+     * Renders the player tank body and turret using PNG sprites.
+     * Both sprites face UP in their source image; we rotate by (angle - 90°)
+     * to convert from the game's math-angle convention (90° = up) to LibGDX
+     * SpriteBatch rotation (0° = no-rotation = facing up).
+     */
+    private void renderPlayerSprites(GameWorld world) {
+        Tank player = world.getPlayer();
+        if (!player.isAlive()) return;
+
+        float alpha = player.isStunned()
+            ? ((System.currentTimeMillis() % 300 < 150) ? 0.3f : 0.8f)
+            : 1.0f;
+
+        float px = player.getPosition().x;
+        float py = player.getPosition().y;
+
+        // ── Body ──────────────────────────────────────────────────────────────
+        float bodyW = GameConfig.PLAYER_WIDTH * 1.6f;  // slightly wider than hitbox for visual fidelity
+        float bodyH = GameConfig.PLAYER_HEIGHT * 2.0f;  // body sprite is taller than hitbox
+        float bodyRot = player.getBodyAngle() - 90f;    // sprite faces up → subtract 90° offset
+        worldBatch.setColor(1f, 1f, 1f, alpha);
+        worldBatch.draw(assets.bodyRegion,
+            px - bodyW / 2f, py - bodyH / 2f,  // bottom-left origin
+            bodyW / 2f, bodyH / 2f,             // rotation origin (center)
+            bodyW, bodyH,                       // size
+            1f, 1f,                             // scale
+            bodyRot);
+
+        // ── Turret ────────────────────────────────────────────────────────────
+        float turretSize = GameConfig.PLAYER_WIDTH * 1.4f;
+        float turretRot = player.getTurretAngle() - 90f;
+        worldBatch.draw(assets.defaultTurret,
+            px - turretSize / 2f, py - turretSize / 2f,
+            turretSize / 2f, turretSize / 2f,
+            turretSize, turretSize,
+            1f, 1f,
+            turretRot);
+
+        worldBatch.setColor(Color.WHITE);
+    }
+
+    /**
+     * Renders default (NORMAL) player bullets as the bullet sprite.
+     * The sprite faces UP; rotation = atan2(dy, dx) - 90° converts to game convention.
+     */
+    private void renderDefaultBulletSprites(GameWorld world) {
+        for (Projectile proj : world.getProjectiles()) {
+            if (!proj.isAlive()) continue;
+            if (proj.getOwner() != Projectile.Owner.PLAYER) continue;
+            if (proj.getType() != Projectile.ProjectileType.NORMAL) continue;
+
+            float bx = proj.getPosition().x;
+            float by = proj.getPosition().y;
+            float bulletSize = GameConfig.PLAYER_WIDTH * 1.4f;
+
+            // Direction angle → sprite rotation
+            float angleDeg = MathUtils.atan2(proj.getDirection().y, proj.getDirection().x)
+                * MathUtils.radiansToDegrees;
+            float spriteRot = angleDeg - 90f;
+
+            worldBatch.setColor(Color.WHITE);
+            worldBatch.draw(assets.defaultBullet,
+                bx - bulletSize / 2f, by - bulletSize / 2f,
+                bulletSize / 2f, bulletSize / 2f,
+                bulletSize, bulletSize,
+                1f, 1f,
+                spriteRot);
+        }
+    }
+
+    /**
+     * Renders MUZZLE_FLASH visual effects using the muzzle flash sprite
+     * with additive blending (called from Pass 3).
+     */
+    private void renderMuzzleFlashSprites(GameWorld world) {
         for (VisualEffect vfx : world.getVisualEffects()) {
             if (!vfx.isAlive()) continue;
+            if (vfx.getType() != VisualEffect.Type.MUZZLE_FLASH) continue;
+
+            float progress = vfx.getProgress();
+            float alpha = 1f - progress;
+            float size = vfx.getRadius() * 2.5f * (1f - progress * 0.4f);
+            float px = vfx.getPosition().x;
+            float py = vfx.getPosition().y;
+            float spriteRot = vfx.getAngle() - 90f;
+
+            worldBatch.setColor(1f, 1f, 1f, alpha);
+            worldBatch.draw(assets.defaultMuzzleFlash,
+                px - size / 2f, py - size / 2f,
+                size / 2f, size / 2f,
+                size, size,
+                1f, 1f,
+                spriteRot);
+        }
+        worldBatch.setColor(Color.WHITE);
+    }
+
+    /**
+     * Renders non-muzzle-flash visual effects using ShapeRenderer with additive blending.
+     * MUZZLE_FLASH is handled separately by {@link #renderMuzzleFlashSprites} using a sprite.
+     */
+    private void renderNonMuzzleVisualEffects(GameWorld world) {
+        for (VisualEffect vfx : world.getVisualEffects()) {
+            if (!vfx.isAlive()) continue;
+            if (vfx.getType() == VisualEffect.Type.MUZZLE_FLASH) continue; // handled by sprite pass
+
             float progress = vfx.getProgress(); // 0 to 1
             float px = vfx.getPosition().x;
             float py = vfx.getPosition().y;
@@ -235,66 +367,97 @@ public class GameRenderer {
                     shapeRenderer.circle(px, py, r, 8);
                     break;
                 }
-                case MUZZLE_FLASH: {
-                    // Cone or diamond
-                    float alpha = 1f - progress;
-                    shapeRenderer.setColor(c.r, c.g, c.b, alpha);
-                    float rad = MathUtils.degreesToRadians * vfx.getAngle();
-                    float dx = MathUtils.cos(rad);
-                    float dy = MathUtils.sin(rad);
-                    float len = vfx.getRadius();
-                    // Just draw a small line/rect as a simple flash
-                    shapeRenderer.rectLine(px, py, px + dx * len, py + dy * len, len * 0.5f);
-                    break;
-                }
                 case LASER_HIT: {
                     // Sparks
                     shapeRenderer.setColor(c.r, c.g, c.b, 1f - progress);
                     shapeRenderer.circle(px, py, vfx.getRadius() * (1f - progress), 6);
                     break;
                 }
+                default:
+                    break;
             }
         }
     }
 
 
-    private void renderBoss(GameWorld world) {
+    private void renderBossSprites(GameWorld world) {
         Tank boss = world.getBoss();
         if (boss == null || !boss.isAlive()) return;
 
         BossController bossCtrl = (BossController) boss.getController();
         boolean isPhase2 = bossCtrl.getPhase() == BossController.Phase.PHASE_2;
-        Color bossColor = isPhase2 ? COLOR_BOSS_P2 : COLOR_BOSS_BODY;
         float blink = (System.currentTimeMillis() % 300 < 150 && isPhase2) ? 0.6f : 1f;
         float alpha = boss.isStunned() ? 0.5f : blink;
 
-        drawTankBody(boss.getPosition().x, boss.getPosition().y,
-            boss.getBodyAngle(), GameConfig.BOSS_WIDTH, bossColor, alpha);
-        drawBarrel(boss.getPosition().x, boss.getPosition().y,
-            boss.getBodyAngle(), GameConfig.BOSS_WIDTH * 0.65f,
-            GameConfig.BOSS_WIDTH * 0.22f,
-            bossColor.cpy().mul(0.7f, 0.7f, 0.7f, alpha));
+        float px = boss.getPosition().x;
+        float py = boss.getPosition().y;
+
+        // Body
+        float bodySize = GameConfig.BOSS_WIDTH * 1.6f;
+        float bodyRot = boss.getBodyAngle() - 90f;
+        worldBatch.setColor(1f, 1f, 1f, alpha);
+        if (isPhase2) {
+            worldBatch.setColor(1f, 0.5f, 0.5f, alpha); // Reddish tint for phase 2
+        }
+        worldBatch.draw(assets.bossBody,
+            px - bodySize / 2f, py - bodySize / 2f,
+            bodySize / 2f, bodySize / 2f,
+            bodySize, bodySize,
+            1f, 1f,
+            bodyRot);
+
+        // Turret
+        float turretSize = GameConfig.BOSS_WIDTH * 1.6f;
+        float turretRot = boss.getTurretAngle() - 90f;
+        worldBatch.draw(assets.bossTurret,
+            px - turretSize / 2f,
+            py - turretSize / 2f,
+            turretSize / 2f, turretSize / 2f,
+            turretSize, turretSize,
+            1f, 1f,
+            turretRot);
+
+        worldBatch.setColor(Color.WHITE);
     }
 
-    private void renderPlayer(GameWorld world) {
-        Tank player = world.getPlayer();
-        if (!player.isAlive()) return;
-
-        float alpha = player.isStunned()
-            ? ((System.currentTimeMillis() % 300 < 150) ? 0.3f : 0.8f)
-            : 1.0f;
-
-        drawTankBody(player.getPosition().x, player.getPosition().y,
-            player.getBodyAngle(), GameConfig.PLAYER_WIDTH,
-            COLOR_PLAYER_BODY, alpha);
-        drawBarrel(player.getPosition().x, player.getPosition().y,
-            player.getTurretAngle(), GameConfig.PLAYER_WIDTH * 0.70f,
-            GameConfig.PLAYER_WIDTH * 0.20f, COLOR_PLAYER_TURRET);
-    }
-
-    private void renderProjectiles(GameWorld world) {
+    private void renderBossBulletSprites(GameWorld world) {
         for (Projectile proj : world.getProjectiles()) {
             if (!proj.isAlive()) continue;
+            if (proj.getOwner() != Projectile.Owner.BOSS) continue;
+
+            float bx = proj.getPosition().x;
+            float by = proj.getPosition().y;
+            float bulletSize = GameConfig.PLAYER_WIDTH * 1.5f;
+
+            float angleDeg = MathUtils.atan2(proj.getDirection().y, proj.getDirection().x)
+                * MathUtils.radiansToDegrees;
+            float spriteRot = angleDeg - 90f;
+
+            worldBatch.setColor(Color.WHITE);
+            worldBatch.draw(assets.bossProjectile,
+                bx - bulletSize / 2f, by - bulletSize / 2f,
+                bulletSize / 2f, bulletSize / 2f,
+                bulletSize, bulletSize,
+                1f, 1f,
+                spriteRot);
+        }
+    }
+
+    // renderPlayer() removed — player is now drawn via renderPlayerSprites() in Pass 2.
+
+    /**
+     * Renders all projectiles EXCEPT player NORMAL bullets (those use a sprite in Pass 2).
+     * Enemy bullets and all special weapon types are rendered as colored circles/shapes.
+     */
+    private void renderNonDefaultProjectiles(GameWorld world) {
+        for (Projectile proj : world.getProjectiles()) {
+            if (!proj.isAlive()) continue;
+
+            // Player NORMAL bullets and BOSS bullets are handled by sprite passes
+            if (proj.getOwner() == Projectile.Owner.PLAYER
+                && proj.getType() == Projectile.ProjectileType.NORMAL) continue;
+            if (proj.getOwner() == Projectile.Owner.BOSS) continue;
+
             Color c;
             float size = GameConfig.BULLET_SIZE / 2f;
             if (proj.getOwner() == Projectile.Owner.ENEMY) {
@@ -404,7 +567,7 @@ public class GameRenderer {
 
         shapeRenderer.end();
 
-        // ── Text pass ─────────────────────────────────────────────────────────
+        // ── Text + icon sprite pass ────────────────────────────────────────────
         hudBatch.setProjectionMatrix(hudCamera.combined);
         hudBatch.begin();
         font.setColor(Color.WHITE);
@@ -416,6 +579,9 @@ public class GameRenderer {
         renderAreaText(world.getAreaManager(), sw, sh);
         renderGameStateText(world.getGameState(), sw, sh);
         renderControlsHint(world.getGameState(), sh);
+
+        // Draw weapon slot sprite icons on top of text (uses hudBatch which is already open)
+        renderWeaponSlotIcons(ws, sw);
 
         if (ws != null && ws.isHubOpen()) {
             renderWeaponHubText(ws, sw, sh);
@@ -493,6 +659,28 @@ public class GameRenderer {
             shapeRenderer.setColor(active ? Color.WHITE : Color.GRAY);
             drawBorderRect(sx, slotY, WEAPON_SLOT_SIZE, WEAPON_SLOT_SIZE, 2);
         }
+    }
+
+    /**
+     * Draws weapon icon sprites on top of the HUD slot backgrounds.
+     * Called from {@link #renderHud} after the ShapeRenderer pass.
+     */
+    private void renderWeaponSlotIcons(WeaponSystem ws, int sw) {
+        if (ws == null) return;
+        int slotY = 16;
+        int padding = 6;
+        int iconSize = WEAPON_SLOT_SIZE - padding * 2;
+
+        for (int i = 0; i < GameConfig.DAMAGE_WEAPON_SLOTS; i++) {
+            WeaponType type = ws.getWeaponSlots()[i];
+            if (type != WeaponType.DEFAULT_BULLET) continue; // only sprite icon for default weapon
+
+            int sx = weaponSlotX(sw, i);
+            TextureRegion icon = assets.defaultWeaponIcon;
+            hudBatch.setColor(1f, 1f, 1f, 1f);
+            hudBatch.draw(icon, sx + padding, slotY + padding, iconSize, iconSize);
+        }
+        hudBatch.setColor(Color.WHITE);
     }
 
     // ─── Equipment slots (3 slots, bottom left) ───────────────────────────────
@@ -864,7 +1052,9 @@ public class GameRenderer {
 
     public void dispose() {
         shapeRenderer.dispose();
+        worldBatch.dispose();
         hudBatch.dispose();
         font.dispose();
+        assets.dispose();
     }
 }

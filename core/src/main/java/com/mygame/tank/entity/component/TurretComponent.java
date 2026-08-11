@@ -31,6 +31,9 @@ public final class TurretComponent {
     private final float damage;
     private final float muzzleOffsetFactor;
 
+    // ── Owner (enemy / boss only) ────────────────────────────────────────────
+    private final Projectile.Owner owner;
+
     // ── Player weapon system (null for enemies) ───────────────────────────────
     private final WeaponSystem weaponSystem;
 
@@ -43,18 +46,20 @@ public final class TurretComponent {
         this.bulletSpeed        = 0f;
         this.damage             = 0f;
         this.muzzleOffsetFactor = muzzleOffsetFactor;
+        this.owner              = Projectile.Owner.PLAYER;
         this.weaponSystem       = weaponSystem;
         this.fireTimer          = 0f;
     }
 
     /** Enemy / boss turret — fixed stats, no WeaponSystem. */
     public TurretComponent(float fireRate, float bulletSpeed, float damage,
-                           float muzzleOffsetFactor) {
+                           float muzzleOffsetFactor, Projectile.Owner owner) {
         this.turretAngle        = 0f;
         this.fireRate           = fireRate;
         this.bulletSpeed        = bulletSpeed;
         this.damage             = damage;
         this.muzzleOffsetFactor = muzzleOffsetFactor;
+        this.owner              = owner;
         this.weaponSystem       = null;
         this.fireTimer          = 0f;
     }
@@ -133,7 +138,7 @@ public final class TurretComponent {
 
         List<Projectile> shots = new ArrayList<>(1);
         shots.add(Projectile.normal(ox, oy, dx / len, dy / len,
-                bulletSpeed, damage, Projectile.Owner.ENEMY, GameConfig.BULLET_LIFETIME));
+                bulletSpeed, damage, this.owner, GameConfig.BULLET_LIFETIME));
         return shots;
     }
 
@@ -155,7 +160,7 @@ public final class TurretComponent {
                     origin.x + dx * offset,
                     origin.y + dy * offset,
                     dx, dy,
-                    bulletSpeed, damage, Projectile.Owner.ENEMY, GameConfig.BULLET_LIFETIME));
+                    bulletSpeed, damage, this.owner, GameConfig.BULLET_LIFETIME));
         }
         return shots;
     }

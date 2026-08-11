@@ -57,9 +57,9 @@ public class PlayerController implements TankController {
             input.fire,
             tank);
 
-        if (ctx.pendingBeams != null) ctx.pendingBeams.addAll(result.laserBeams);
-        if (ctx.pendingEffects != null) ctx.pendingEffects.addAll(result.worldEffects);
-        if (ctx.pendingVfx != null) ctx.pendingVfx.addAll(result.vfx);
+        ctx.addLaserBeams(result.laserBeams);
+        ctx.addWorldEffects(result.worldEffects);
+        ctx.addVisualEffects(result.vfx);
 
         return result.projectiles;
     }
@@ -88,15 +88,9 @@ public class PlayerController implements TankController {
 
         // Push all equipment output entities to UpdateContext
         if (result != WeaponSystem.FireResult.EMPTY) {
-            if (ctx.pendingEffects != null && !result.worldEffects.isEmpty()) {
-                ctx.pendingEffects.addAll(result.worldEffects);
-            }
-            if (ctx.pendingVfx != null && !result.vfx.isEmpty()) {
-                ctx.pendingVfx.addAll(result.vfx);
-            }
-            if (ctx.pendingBeams != null && !result.laserBeams.isEmpty()) {
-                ctx.pendingBeams.addAll(result.laserBeams);
-            }
+            ctx.addWorldEffects(result.worldEffects);
+            ctx.addVisualEffects(result.vfx);
+            ctx.addLaserBeams(result.laserBeams);
         }
     }
 
