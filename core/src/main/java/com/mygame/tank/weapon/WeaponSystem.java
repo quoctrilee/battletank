@@ -246,11 +246,11 @@ public class WeaponSystem {
         shots.add(Projectile.normal(ox, oy, dx, dy,
             GameConfig.DEFAULT_SPEED, GameConfig.DEFAULT_DAMAGE,
             Projectile.Owner.PLAYER, GameConfig.DEFAULT_LIFETIME));
-            
+
         List<VisualEffect> vfx = new ArrayList<>(1);
         float angle = MathUtils.atan2(dy, dx) * MathUtils.radiansToDegrees;
         vfx.add(VisualEffect.muzzleFlash(ox, oy, angle, com.badlogic.gdx.graphics.Color.WHITE));
-        
+
         return new FireResult(shots, Collections.emptyList(), Collections.emptyList(), vfx);
     }
 
@@ -276,7 +276,7 @@ public class WeaponSystem {
         List<VisualEffect> vfx = new ArrayList<>(1);
         float angle = MathUtils.atan2(dy, dx) * MathUtils.radiansToDegrees;
         vfx.add(VisualEffect.muzzleFlash(ox, oy, angle, com.badlogic.gdx.graphics.Color.WHITE));
-        
+
         return new FireResult(shots, Collections.emptyList(), Collections.emptyList(), vfx);
     }
 

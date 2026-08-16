@@ -13,6 +13,9 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.mygame.tank.config.GameConfig;
 import com.mygame.tank.controller.ai.BossController;
+import com.mygame.tank.dungeon.DungeonMap;
+import com.mygame.tank.dungeon.Room;
+import com.mygame.tank.dungeon.RoomProgressionManager;
 import com.mygame.tank.entity.LaserBeam;
 import com.mygame.tank.entity.Projectile;
 import com.mygame.tank.entity.Tank;
@@ -22,9 +25,7 @@ import com.mygame.tank.entity.component.turret.PlayerTurretComponent;
 import com.mygame.tank.weapon.EquipmentType;
 import com.mygame.tank.weapon.WeaponSystem;
 import com.mygame.tank.weapon.WeaponType;
-import com.mygame.tank.world.AreaManager;
 import com.mygame.tank.world.GameWorld;
-import com.mygame.tank.world.MapManager;
 
 import java.util.Map;
 
@@ -120,20 +121,37 @@ public class GameRenderer {
         shapeRenderer.setProjectionMatrix(camera.combined);
         worldBatch.setProjectionMatrix(camera.combined);
 
-        // ── Pass 1: Shape-rendered elements (map, effects, enemies, boss) ────────
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+
+        // ── Pass 1: Vẽ void đen khắp map — bất kỳ vùng nào chưa có floor sẽ hiện đen ──
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        renderMapBackground(world);
+        shapeRenderer.setColor(0.06f, 0.06f, 0.07f, 1f);
+        shapeRenderer.rect(0, 0, GameConfig.MAP_WIDTH, GameConfig.MAP_HEIGHT);
+        shapeRenderer.end();
+
+        // ── Pass 2: Floor texture (background tiles, ghép ngẫu nhiên không trùng liên tiếp)
+        worldBatch.begin();
+        renderFloorTiles(world);
+        worldBatch.end();
+
+        // ── Pass 3: Wall + cover + doors (shape + sprite)
+        worldBatch.begin();
+        renderWallSprites(world);
+        worldBatch.end();
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        renderDoors(world);
+        shapeRenderer.end();
+
+        // ── Pass 4: World effects + enemies (shapes)
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         renderWorldEffects(world);
         renderEnemies(world);
-        renderNonDefaultProjectiles(world);   // AoE, stun, homing, AP, enemy bullets
+        renderNonDefaultProjectiles(world);
         renderLaserBeams(world);
         shapeRenderer.end();
 
-        // ── Pass 2: Sprite-rendered elements (player body/turret, default bullets) ─
-        Gdx.gl.glEnable(GL20.GL_BLEND);
-        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        // ── Pass 5: Player + boss sprites
         worldBatch.begin();
         renderPlayerSprites(world);
         renderBossSprites(world);
@@ -141,8 +159,7 @@ public class GameRenderer {
         renderBossBulletSprites(world);
         worldBatch.end();
 
-        // ── Pass 3: Visual effects (additive blending, above everything) ─────────
-        Gdx.gl.glEnable(GL20.GL_BLEND);
+        // ── Pass 6: Additive VFX
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
         worldBatch.begin();
         renderMuzzleFlashSprites(world);
@@ -152,29 +169,133 @@ public class GameRenderer {
         shapeRenderer.end();
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
 
-        // ── Pass 4: Health bars (normal blending, top layer in world space) ──────
+        // ── Pass 7: Health bars (world space)
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         renderHealthBars(world);
         shapeRenderer.end();
+
+        // ── Pass 8: Fog of War
+        renderFogOfWar(camera, world);
     }
 
-    private void renderMapBackground(GameWorld world) {
-        MapManager map = world.getMapManager();
-        AreaManager am = world.getAreaManager();
+    // ─── Floor tile rendering (background.jpg ─ 4 sub-tiles ngẫu nhiên không trùng liên tiếp)
 
-        shapeRenderer.setColor(COLOR_FLOOR);
-        shapeRenderer.rect(0, 0, GameConfig.MAP_WIDTH, GameConfig.MAP_HEIGHT);
+    /**
+     * Vẽ floor theo từng tile 48×48:
+     * - Mỗi tile chọn 1 trong 4 sub-tiles từ background.jpg.
+     * - Không trùng sub-tile với tile liền trước (lastIdx tracking).
+     * - Phòng và hành lang đều dùng chung 4 sub-tiles, hành lang hơi tối hơn (tint).
+     */
+    private void renderFloorTiles(GameWorld world) {
+        DungeonMap dm = world.getDungeonMap();
+        int tile = GameConfig.MAP_TILE_SIZE;
+        // Sử dụng hash tạo giá trị pseudo-random n hưng cố định theo tọa độ tile
+        // để map giống nhau mỗi frame, nhưng khác nhau mỗi tile
+        java.util.function.BiFunction<Integer, Integer, Integer> tileHash = (col, row) -> {
+            // Wang hash-like: dùng XOR + prime
+            int h = col * 1619 ^ row * 31337;
+            h = (h ^ (h >>> 16)) * 0x45d9f3b;
+            h = (h ^ (h >>> 16));
+            return Math.abs(h) % 4;
+        };
 
-        shapeRenderer.setColor(COLOR_WALL);
-        for (Rectangle r : map.getCollisionRects()) {
-            shapeRenderer.rect(r.x, r.y, r.width, r.height);
+        // Vẽ floor phòng
+        for (Room room : dm.getRooms()) {
+            int c0 = (int) (room.bounds.x / tile);
+            int c1 = (int) ((room.bounds.x + room.bounds.width) / tile);
+            int r0 = (int) (room.bounds.y / tile);
+            int r1 = (int) ((room.bounds.y + room.bounds.height) / tile);
+
+            for (int row = r0; row < r1; row++) {
+                int lastIdx = -1;
+                for (int col = c0; col < c1; col++) {
+                    int idx = tileHash.apply(col, row);
+                    // Không trùng liên tiếp
+                    if (idx == lastIdx) idx = (idx + 1) % 4;
+                    lastIdx = idx;
+
+                    worldBatch.setColor(1f, 1f, 1f, 1f);
+                    worldBatch.draw(assets.floorTiles[idx],
+                        col * tile, row * tile, tile, tile);
+                }
+            }
         }
 
-        for (Map.Entry<String, Rectangle> entry : map.getDoorRects().entrySet()) {
-            boolean open = am.isDoorOpen(entry.getKey());
-            shapeRenderer.setColor(open ? COLOR_DOOR_OPEN : COLOR_DOOR_CLOSE);
-            Rectangle r = entry.getValue();
-            shapeRenderer.rect(r.x, r.y, r.width, r.height);
+        // Vẽ floor hành lang (hơi tối để phân biệt với phòng)
+        for (com.mygame.tank.dungeon.Corridor corr : dm.getCorridors()) {
+            for (Rectangle seg : corr.segments) {
+                int c0 = (int) (seg.x / tile);
+                int c1 = (int) ((seg.x + seg.width) / tile);
+                int r0 = (int) (seg.y / tile);
+                int r1 = (int) ((seg.y + seg.height) / tile);
+                for (int row = r0; row < r1; row++) {
+                    int lastIdx = -1;
+                    for (int col = c0; col < c1; col++) {
+                        int idx = tileHash.apply(col, row);
+                        if (idx == lastIdx) idx = (idx + 1) % 4;
+                        lastIdx = idx;
+                        worldBatch.setColor(0.75f, 0.75f, 0.75f, 1f); // tối nhẹ
+                        worldBatch.draw(assets.floorTiles[idx],
+                            col * tile, row * tile, tile, tile);
+                    }
+                }
+            }
+        }
+        worldBatch.setColor(1f, 1f, 1f, 1f);
+    }
+
+    // ─── Wall sprite rendering (wall.png + cover.png) ─────────────────────────
+
+    /**
+     * Vẽ tường bằng wall.png texture (tiled qua UV scale).
+     * Gọi khi worldBatch đang mở.
+     */
+    private void renderWallSprites(GameWorld world) {
+        DungeonMap dm = world.getDungeonMap();
+        int tile = GameConfig.MAP_TILE_SIZE;
+
+        worldBatch.setColor(1f, 1f, 1f, 1f);
+        for (Rectangle r : dm.getCollisionRects()) {
+            // Vẽ từng ô tile×tile — cùng kích thước với floor background tile
+            int c0 = (int) (r.x / tile);
+            int c1 = (int) ((r.x + r.width) / tile);
+            int r0 = (int) (r.y / tile);
+            int r1 = (int) ((r.y + r.height) / tile);
+            for (int row = r0; row < r1; row++) {
+                for (int col = c0; col < c1; col++) {
+                    worldBatch.draw(assets.wallTexture,
+                        col * tile, row * tile, tile, tile);
+                }
+            }
+        }
+    }
+
+    /**
+     * Vẽ cửa boss/entrance bằng màu shape.
+     * Gọi khi shapeRenderer đang mở FILLED.
+     */
+    private void renderDoors(GameWorld world) {
+        DungeonMap dm = world.getDungeonMap();
+        RoomProgressionManager rm = world.getRoomManager();
+
+        // Boss doors
+        for (Map.Entry<String, Rectangle> entry : dm.getDoorRects().entrySet()) {
+            boolean open = rm.isDoorOpen(entry.getKey());
+            if (!open) {
+                shapeRenderer.setColor(COLOR_DOOR_CLOSE);
+                Rectangle r = entry.getValue();
+                shapeRenderer.rect(r.x, r.y, r.width, r.height);
+            }
+        }
+
+        // Entrance doors
+        for (Map.Entry<String, Rectangle> entry : dm.getEntranceDoorRects().entrySet()) {
+            boolean open = rm.isDoorOpen(entry.getKey());
+            if (!open) {
+                shapeRenderer.setColor(new Color(0.6f, 0.3f, 0.05f, 1f)); // tối hơn boss door
+                Rectangle r = entry.getValue();
+                shapeRenderer.rect(r.x, r.y, r.width, r.height);
+            }
         }
     }
 
@@ -382,41 +503,42 @@ public class GameRenderer {
 
 
     private void renderBossSprites(GameWorld world) {
-        Tank boss = world.getBoss();
-        if (boss == null || !boss.isAlive()) return;
+        for (Tank boss : world.getBosses()) {
+            if (!boss.isAlive()) continue;
 
-        BossController bossCtrl = (BossController) boss.getController();
-        boolean isPhase2 = bossCtrl.getPhase() == BossController.Phase.PHASE_2;
-        float blink = (System.currentTimeMillis() % 300 < 150 && isPhase2) ? 0.6f : 1f;
-        float alpha = boss.isStunned() ? 0.5f : blink;
+            BossController bossCtrl = (BossController) boss.getController();
+            boolean isPhase2 = bossCtrl.getPhase() == BossController.Phase.PHASE_2;
+            float blink = (System.currentTimeMillis() % 300 < 150 && isPhase2) ? 0.6f : 1f;
+            float alpha = boss.isStunned() ? 0.5f : blink;
 
-        float px = boss.getPosition().x;
-        float py = boss.getPosition().y;
+            float px = boss.getPosition().x;
+            float py = boss.getPosition().y;
 
-        // Body
-        float bodySize = GameConfig.BOSS_WIDTH * 1.6f;
-        float bodyRot = boss.getBodyAngle() - 90f;
-        worldBatch.setColor(1f, 1f, 1f, alpha);
-        if (isPhase2) {
-            worldBatch.setColor(1f, 0.5f, 0.5f, alpha); // Reddish tint for phase 2
+            // Body
+            float bodySize = GameConfig.BOSS_WIDTH * 1.6f;
+            float bodyRot = boss.getBodyAngle() - 90f;
+            worldBatch.setColor(1f, 1f, 1f, alpha);
+            if (isPhase2) {
+                worldBatch.setColor(1f, 0.5f, 0.5f, alpha); // Reddish tint for phase 2
+            }
+            worldBatch.draw(assets.bossBody,
+                px - bodySize / 2f, py - bodySize / 2f,
+                bodySize / 2f, bodySize / 2f,
+                bodySize, bodySize,
+                1f, 1f,
+                bodyRot);
+
+            // Turret
+            float turretSize = GameConfig.BOSS_WIDTH * 1.6f;
+            float turretRot = boss.getTurretAngle() - 90f;
+            worldBatch.draw(assets.bossTurret,
+                px - turretSize / 2f,
+                py - turretSize / 2f,
+                turretSize / 2f, turretSize / 2f,
+                turretSize, turretSize,
+                1f, 1f,
+                turretRot);
         }
-        worldBatch.draw(assets.bossBody,
-            px - bodySize / 2f, py - bodySize / 2f,
-            bodySize / 2f, bodySize / 2f,
-            bodySize, bodySize,
-            1f, 1f,
-            bodyRot);
-
-        // Turret
-        float turretSize = GameConfig.BOSS_WIDTH * 1.6f;
-        float turretRot = boss.getTurretAngle() - 90f;
-        worldBatch.draw(assets.bossTurret,
-            px - turretSize / 2f,
-            py - turretSize / 2f,
-            turretSize / 2f, turretSize / 2f,
-            turretSize, turretSize,
-            1f, 1f,
-            turretRot);
 
         worldBatch.setColor(Color.WHITE);
     }
@@ -527,21 +649,80 @@ public class GameRenderer {
             float cy = enemy.getPosition().y + GameConfig.ENEMY_HEIGHT * 0.7f;
             drawHealthBar(enemy.getPosition().x, cy, 32f, 4f,
                 enemy.getHp() / enemy.getMaxHp());
-            // Stun bar
             if (enemy.isStunned()) {
                 shapeRenderer.setColor(0.5f, 0.2f, 1f, 1f);
                 shapeRenderer.rect(enemy.getPosition().x - 16f, cy + 6f,
                     32f * MathUtils.clamp(enemy.getHealth().getStunTimer() / GameConfig.STUN_DURATION, 0f, 1f), 3f);
             }
         }
-
-        Tank boss = world.getBoss();
-        if (boss != null && boss.isAlive()) {
+        // Multi-boss health bars (world space, above each boss)
+        for (Tank boss : world.getBosses()) {
+            if (!boss.isAlive()) continue;
             float cy = boss.getPosition().y + GameConfig.BOSS_HEIGHT * 0.85f;
             drawHealthBar(boss.getPosition().x, cy, 60f, 7f,
                 boss.getHp() / boss.getMaxHp());
         }
     }
+
+    // ─── Fog of War ───────────────────────────────────────────────────────────
+
+    /**
+     * Fog of War:
+     * Dùng 4 dải hình chữ nhật đen che phủ phần ngoài "fog rect",
+     * sau đó vẽ fogMask (nhân với scene) ở giữa.
+     */
+    private void renderFogOfWar(OrthographicCamera camera, GameWorld world) {
+        Tank player = world.getPlayer();
+        if (!player.isAlive()) return;
+
+        float px = player.getPosition().x;
+        float py = player.getPosition().y;
+        float fogW = GameConfig.FOG_RADIUS_X * 2f;
+        float fogH = GameConfig.FOG_RADIUS_Y * 2f;
+        float fogX = px - fogW / 2f;
+        float fogY = py - fogH / 2f;
+
+        float camX = camera.position.x;
+        float camY = camera.position.y;
+        float halfVW = camera.viewportWidth / 2f;
+        float halfVH = camera.viewportHeight / 2f;
+
+        float left = camX - halfVW;
+        float right = camX + halfVW;
+        float bottom = camY - halfVH;
+        float top = camY + halfVH;
+
+        // ── Bước 1: Fill đen vùng ngoài fog mask (4 dải: Bottom, Top, Left, Right) ──
+        shapeRenderer.setProjectionMatrix(camera.combined);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(0f, 0f, 0f, 1f);
+        // Dải Bottom
+        shapeRenderer.rect(left, bottom, camera.viewportWidth, fogY - bottom);
+        // Dải Top
+        shapeRenderer.rect(left, fogY + fogH, camera.viewportWidth, top - (fogY + fogH));
+        // Dải Left (kẹp giữa Bottom và Top)
+        shapeRenderer.rect(left, fogY, fogX - left, fogH);
+        // Dải Right (kẹp giữa Bottom và Top)
+        shapeRenderer.rect(fogX + fogW, fogY, right - (fogX + fogW), fogH);
+        shapeRenderer.end();
+
+        // ── Bước 2: Vẽ fog mask (mềm) ở khu vực fog rect bằng multiplicative blend ──
+        worldBatch.setProjectionMatrix(camera.combined);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        worldBatch.begin();
+        worldBatch.setBlendFunction(GL20.GL_ZERO, GL20.GL_SRC_COLOR);
+        worldBatch.setColor(1f, 1f, 1f, 1f);
+        worldBatch.draw(assets.fogMask, fogX, fogY, fogW, fogH);
+        worldBatch.end();
+        worldBatch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+    }
+
+    /**
+     * Thông báo khi screen resize (hiện tại không cần action).
+     */
+    public void onResize() { /* reserved for future framebuffer resize */ }
 
     // ─── Screen-space HUD ────────────────────────────────────────────────────
 
@@ -558,7 +739,7 @@ public class GameRenderer {
         renderHpBar(player, sh);
         renderWeaponSlots(ws, sw, sh);
         renderEquipmentSlots(ws, sw, sh);
-        renderBossHpBar(world.getBoss(), sw, sh);
+        renderBossHpBar(world, sw, sh);  // multi-boss HUD
         renderGameStateOverlay(world.getGameState(), sw, sh);
 
         // Weapon hub overlay
@@ -576,8 +757,8 @@ public class GameRenderer {
         renderHpText(player, sh);
         renderWeaponSlotText(ws, sw, sh);
         renderEquipmentSlotText(ws, sw, sh);
-        renderBossText(world.getBoss(), sw, sh);
-        renderAreaText(world.getAreaManager(), sw, sh);
+        renderBossHudText(world, sw, sh);    // multi-boss text
+        renderRoomProgressText(world.getRoomManager(), sw, sh);
         renderGameStateText(world.getGameState(), sw, sh);
         renderControlsHint(world.getGameState(), sh);
 
@@ -776,21 +957,37 @@ public class GameRenderer {
 
     // ─── Boss HP bar (top center) ─────────────────────────────────────────────
 
-    private void renderBossHpBar(Tank boss, int sw, int sh) {
-        if (boss == null || !boss.isAlive()) return;
-        float ratio = boss.getHp() / boss.getMaxHp();
-        int barW = 300, barH = 16;
-        int bx = sw / 2 - barW / 2;
-        int by = sh - 40;
+    private void renderBossHpBar(GameWorld world, int sw, int sh) {
+        DungeonMap dm = world.getDungeonMap();
+        Tank player = world.getPlayer();
+        com.mygame.tank.dungeon.Room playerRoom = dm.getRoomAt(player.getPosition().x, player.getPosition().y);
 
-        shapeRenderer.setColor(new Color(0.15f, 0.15f, 0.15f, 0.85f));
-        shapeRenderer.rect(bx, by, barW, barH);
+        int barW = 280, barH = 14, gap = 4;
+        int bossIdx = 0;
+        for (Tank boss : world.getBosses()) {
+            if (!boss.isAlive()) continue;
 
-        BossController bossCtrl = (BossController) boss.getController();
-        shapeRenderer.setColor(bossCtrl.getPhase() == BossController.Phase.PHASE_2
-            ? new Color(0.95f, 0.1f, 0.6f, 1f)
-            : new Color(0.85f, 0.4f, 0.05f, 1f));
-        shapeRenderer.rect(bx + 1, by + 1, (barW - 2) * ratio, barH - 2);
+            // Chỉ hiện nếu player đang trong phòng boss đó
+            if (playerRoom == null || playerRoom.type != com.mygame.tank.dungeon.Room.Type.BOSS) continue;
+            String bossRoomKey = world.getBossRoomKeyFor(boss); // "BOSS_ROOM_N"
+            String expectedKey = DungeonMap.doorKey(playerRoom);  // "BOSS_ROOM_N"
+            if (!bossRoomKey.equals(expectedKey)) continue;
+
+            float ratio = boss.getHp() / boss.getMaxHp();
+            int bx = sw / 2 - barW / 2;
+            int by = sh - 40 - bossIdx * (barH + gap + 14);
+
+            shapeRenderer.setColor(new Color(0.15f, 0.15f, 0.15f, 0.85f));
+            shapeRenderer.rect(bx, by, barW, barH);
+
+            BossController ctrl = (BossController) boss.getController();
+            boolean phase2 = ctrl.getPhase() == BossController.Phase.PHASE_2;
+            shapeRenderer.setColor(phase2
+                ? new Color(0.95f, 0.1f, 0.6f, 1f)
+                : new Color(0.85f, 0.4f, 0.05f, 1f));
+            shapeRenderer.rect(bx + 1, by + 1, (barW - 2) * ratio, barH - 2);
+            bossIdx++;
+        }
     }
 
     // ─── Win/Lose overlay ────────────────────────────────────────────────────
@@ -940,27 +1137,43 @@ public class GameRenderer {
         font.setColor(Color.WHITE);
     }
 
-    private void renderBossText(Tank boss, int sw, int sh) {
-        if (boss == null || !boss.isAlive()) return;
+    /**
+     * Hiển thị tên + phase của boss chỉ khi player trong phòng boss đó.
+     */
+    private void renderBossHudText(GameWorld world, int sw, int sh) {
+        DungeonMap dm = world.getDungeonMap();
+        Tank player = world.getPlayer();
+        Room playerRoom = dm.getRoomAt(player.getPosition().x, player.getPosition().y);
+        if (playerRoom == null || playerRoom.type != Room.Type.BOSS) return;
+        String expectedKey = DungeonMap.doorKey(playerRoom);
 
-        BossController bossCtrl = (BossController) boss.getController();
-        boolean isPhase2 = bossCtrl.getPhase() == BossController.Phase.PHASE_2;
-        font.setColor(isPhase2 ? Color.RED : Color.ORANGE);
+        int bossIdx = 0;
+        int barH = 14, gap = 4;
+        for (Tank boss : world.getBosses()) {
+            if (!boss.isAlive()) continue;
+            if (!world.getBossRoomKeyFor(boss).equals(expectedKey)) continue;
 
-        String text = String.format("IRON GUARD   %d / %d   Phase %d",
-            (int) boss.getHp(), (int) boss.getMaxHp(), isPhase2 ? 2 : 1);
-        layout.setText(font, text);
-        font.draw(hudBatch, layout, sw / 2f - layout.width / 2f, sh - 22);
+            BossController ctrl = (BossController) boss.getController();
+            boolean phase2 = ctrl.getPhase() == BossController.Phase.PHASE_2;
+            font.setColor(phase2 ? Color.RED : Color.ORANGE);
+            int by = sh - 40 - bossIdx * (barH + gap + 14);
+            font.draw(hudBatch,
+                String.format("IRON GUARD  %d/%d  P%d",
+                    (int) boss.getHp(), (int) boss.getMaxHp(), phase2 ? 2 : 1),
+                sw / 2f - 90f, by + barH + 13);
+            bossIdx++;
+        }
         font.setColor(Color.WHITE);
     }
 
-    private void renderAreaText(AreaManager am, int sw, int sh) {
-        StringBuilder sb = new StringBuilder("Areas: ");
-        sb.append(am.isAreaCleared("A") ? "[A✓] " : "[A]  ");
-        sb.append(am.isAreaCleared("B") ? "[B✓] " : "[B]  ");
-        sb.append(am.isAreaCleared("C") ? "[C✓]" : "[C] ");
+    /**
+     * Hiển thị tiến trình dọn phòng ở góc trên phải.
+     */
+    private void renderRoomProgressText(RoomProgressionManager rm, int sw, int sh) {
+        // Đếm số phòng đã clear (không có getter tống số, nên hiển thị dựa trên win state)
         font.setColor(new Color(0.7f, 0.9f, 0.7f, 1f));
-        font.draw(hudBatch, sb.toString(), sw - 260f, sh - 10);
+        font.draw(hudBatch, rm.isGameWon() ? "ALL BOSSES DEFEATED!" : "Survive & Defeat All Bosses",
+            sw - 280f, sh - 10);
         font.setColor(Color.WHITE);
     }
 

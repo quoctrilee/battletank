@@ -10,8 +10,9 @@ import com.badlogic.gdx.math.Vector2;
 import com.mygame.tank.controller.ai.BossController;
 import com.mygame.tank.entity.Tank;
 import com.mygame.tank.entity.Projectile;
+import com.mygame.tank.dungeon.DungeonMap;
+import com.mygame.tank.dungeon.Room;
 import com.mygame.tank.world.GameWorld;
-import com.mygame.tank.world.MapManager;
 
 import java.util.Map;
 
@@ -27,11 +28,16 @@ public class DebugRenderer {
 
     public DebugRenderer(boolean enabledDefault) {
         shapeRenderer = new ShapeRenderer();
-        this.enabled  = enabledDefault;
+        this.enabled = enabledDefault;
     }
 
-    public void toggle()           { enabled = !enabled; }
-    public boolean isEnabled()     { return enabled; }
+    public void toggle() {
+        enabled = !enabled;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
 
     public void render(OrthographicCamera camera, GameWorld world) {
         if (!enabled) return;
@@ -41,7 +47,7 @@ public class DebugRenderer {
         shapeRenderer.setProjectionMatrix(camera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
 
-        MapManager map = world.getMapManager();
+        DungeonMap map = world.getDungeonMap();
 
         // Collision rects (white, semi-transparent)
         shapeRenderer.setColor(1f, 1f, 1f, 0.5f);
@@ -49,19 +55,39 @@ public class DebugRenderer {
             shapeRenderer.rect(r.x, r.y, r.width, r.height);
         }
 
-        // Door rects — green = open, red = closed
+        // Door rects (boss + entrance) — green = open, red/brown = closed
         for (Map.Entry<String, Rectangle> entry : map.getDoorRects().entrySet()) {
-            boolean open = world.getAreaManager().isDoorOpen(entry.getKey());
+            boolean open = world.getRoomManager().isDoorOpen(entry.getKey());
             shapeRenderer.setColor(open ? new Color(0f, 1f, 0f, 0.9f)
-                                        : new Color(1f, 0f, 0f, 0.9f));
+                : new Color(1f, 0f, 0f, 0.9f));
+            Rectangle r = entry.getValue();
+            shapeRenderer.rect(r.x, r.y, r.width, r.height);
+        }
+        for (Map.Entry<String, Rectangle> entry : map.getEntranceDoorRects().entrySet()) {
+            boolean open = world.getRoomManager().isDoorOpen(entry.getKey());
+            shapeRenderer.setColor(open ? new Color(0.2f, 0.8f, 0.2f, 0.7f)
+                : new Color(0.8f, 0.4f, 0.1f, 0.9f));
             Rectangle r = entry.getValue();
             shapeRenderer.rect(r.x, r.y, r.width, r.height);
         }
 
-        // Area boundaries (blue)
+        // Area boundaries (blue) - nay là Room bounds
         shapeRenderer.setColor(0.2f, 0.5f, 1f, 0.4f);
-        for (Rectangle r : map.getAreaBounds().values()) {
+        for (Room room : map.getRooms()) {
+            Rectangle r = room.bounds;
             shapeRenderer.rect(r.x, r.y, r.width, r.height);
+        }
+
+        // Spawn points
+        shapeRenderer.setColor(1f, 1f, 0f, 0.8f);
+        if (map.getPlayerSpawn() != null) {
+            shapeRenderer.circle(map.getPlayerSpawn().x, map.getPlayerSpawn().y, 10f);
+        }
+        shapeRenderer.setColor(1f, 0f, 0f, 0.8f);
+        for (java.util.List<Vector2> spawns : map.getEnemySpawns().values()) {
+            for (Vector2 p : spawns) {
+                shapeRenderer.circle(p.x, p.y, 8f);
+            }
         }
 
         // Player hitbox (cyan)
@@ -92,25 +118,12 @@ public class DebugRenderer {
             shapeRenderer.rect(rb.x, rb.y, rb.width, rb.height);
         }
 
-        // Spawn point crosses
-        shapeRenderer.setColor(0f, 1f, 0.3f, 0.9f);
-        drawCross(map.getPlayerSpawn().x, map.getPlayerSpawn().y, 12f);
-        if (map.getBossSpawn() != null) {
-            shapeRenderer.setColor(1f, 0.2f, 0.2f, 0.9f);
-            drawCross(map.getBossSpawn().x, map.getBossSpawn().y, 16f);
-        }
-        shapeRenderer.setColor(1f, 0.6f, 0.1f, 0.7f);
-        for (Map.Entry<String, java.util.List<Vector2>> entry : map.getEnemySpawns().entrySet()) {
-            for (Vector2 pt : entry.getValue()) {
-                drawCross(pt.x, pt.y, 8f);
-            }
-        }
-
-        // Boss circle center (if boss active)
-        if (world.getBoss() != null) {
+        // Boss AI circle center
+        for (Tank boss : world.getBosses()) {
+            if (!boss.isAlive()) continue;
+            BossController bCtrl = (BossController) boss.getController();
             shapeRenderer.setColor(1f, 0f, 1f, 0.5f);
-            BossController bossCtrl = (BossController) world.getBoss().getController();
-            Vector2 cc = bossCtrl.getCircleCenter();
+            Vector2 cc = bCtrl.getCircleCenter();
             shapeRenderer.circle(cc.x, cc.y, 200f, 24);
         }
 

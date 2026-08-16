@@ -46,6 +46,13 @@ public final class UpdateContext {
     public final boolean playerInSmoke;
 
     /**
+     * Waypoint tiếp theo theo đường A* dẫn đến player (có thể null).
+     * Khi non-null, EnemyController di chuyển đến waypoint này thay vì
+     * trực tiếp đến playerPos — cho phép điều hướng qua hành lang.
+     */
+    public final Vector2 pathfindingTarget;
+
+    /**
      * Raw input snapshot — non-null only for the player controller.
      */
     public final PlayerInput playerInput;
@@ -55,31 +62,18 @@ public final class UpdateContext {
     private final List<VisualEffect> pendingVfx;
 
     // ─── Constructors ─────────────────────────────────────────────────────────
-
     /**
-     * Context for enemy / boss controllers (no pending output lists).
-     * {@code playerInSmoke} defaults to false — use the overload below when
-     * GameWorld has determined the player is inside a SmokeBomb cloud.
-     */
-    public UpdateContext(Vector2 playerPos, boolean playerAlive, boolean areaActive) {
-        this(playerPos, playerAlive, areaActive, false);
-    }
-
-    /**
-     * Context for enemy / boss controllers with smoke state.
-     * <p>
-     * GameWorld should pass {@code playerInSmoke = true} whenever the player
-     * overlaps any active {@link com.mygame.tank.entity.WorldEffect.SmokeBomb}.
-     * This lets {@link com.mygame.tank.controller.ai.EnemyController} suppress
-     * detection and force the lost-timer to run, without querying world state
-     * directly.
+     * Context cho enemy controller — bao gồm A* waypoint.
+     *
+     * @param pathfindingTarget waypoint A* tiếp theo, hoặc null để đi thẳng đến player
      */
     public UpdateContext(Vector2 playerPos, boolean playerAlive, boolean areaActive,
-                         boolean playerInSmoke) {
+                         boolean playerInSmoke, Vector2 pathfindingTarget) {
         this.playerPos = playerPos;
         this.playerAlive = playerAlive;
         this.areaActive = areaActive;
         this.playerInSmoke = playerInSmoke;
+        this.pathfindingTarget = pathfindingTarget;
         this.playerInput = null;
         this.pendingBeams = new ArrayList<>();
         this.pendingEffects = new ArrayList<>();
@@ -97,6 +91,7 @@ public final class UpdateContext {
         this.playerAlive = true;
         this.areaActive = false;
         this.playerInSmoke = false;   // irrelevant for the player's own controller
+        this.pathfindingTarget = null;
         this.playerInput = playerInput;
         this.pendingBeams = pendingBeams;
         this.pendingEffects = pendingEffects;
@@ -113,17 +108,5 @@ public final class UpdateContext {
 
     public void addVisualEffects(List<VisualEffect> effects) {
         pendingVfx.addAll(effects);
-    }
-
-    public List<LaserBeam> getPendingBeams() {
-        return pendingBeams;
-    }
-
-    public List<WorldEffect> getPendingEffects() {
-        return pendingEffects;
-    }
-
-    public List<VisualEffect> getPendingVfx() {
-        return pendingVfx;
     }
 }

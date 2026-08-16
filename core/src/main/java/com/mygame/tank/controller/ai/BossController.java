@@ -19,41 +19,51 @@ import java.util.List;
  * - Skips IDLE/CHASE; always active once spawned
  * - Circular orbit around its spawn centre
  * - 3-way spread shots (via TurretComponent)
- * - Phase 2 transition at 50 % HP → mini-tank spawning
- * - Bounces off walls: BossController has no idea where walls are. When
- * the world's CollisionSystem pushes the boss out of a wall, GameWorld
- * reports that push vector here via {@link #onWallCollision}, and the
- * controller reflects its orbit direction off it — same pattern as a
- * ball bouncing off a surface, driven entirely by the collision outcome
- * rather than the controller probing wall geometry itself.
+ * - Phase system:
+ *   <ul>
+ *     <li>PHASE_1: HP > 50% — orbit + spread fire</li>
+ *     <li>PHASE_2: HP ≤ 50% — spawn mini-tanks ngay khi transition,
+ *         sau đó định kỳ mỗi {@link GameConfig#BOSS_MINI_SPAWN_INTERVAL}s</li>
+ *     <li>PHASE_3: HP ≤ 25% — spawn thêm ngay khi transition,
+ *         sau đó spawn nhanh hơn mỗi {@link GameConfig#BOSS_PHASE3_MINI_SPAWN_INTERVAL}s
+ *         với số lượng lớn hơn ({@link GameConfig#BOSS_PHASE3_MINI_TANK_COUNT})</li>
+ *   </ul>
+ * - Bounces off walls: GameWorld reports push vector via {@link #onWallCollision}.
  */
 public class BossController implements TankController {
 
-    public enum Phase {PHASE_1, PHASE_2}
-
-    // ── Wrapped base AI (used only to query dead state consistently) ──────────
-    private final EnemyController baseAI;
+    public enum Phase {PHASE_1, PHASE_2, PHASE_3}
 
     // ── Boss-specific state ───────────────────────────────────────────────────
     private Phase phase;
     private float circleAngle;          // current orbit angle, degrees
     private final Vector2 circleCenter;   // fixed orbit centre
     private float miniSpawnTimer;
-    private boolean pendingMiniSpawn;
+    /**
+     * Số mini-tank cần spawn trong frame này.
+     * 0 = không spawn. Được reset về 0 sau khi {@link #consumePendingMiniSpawn()} đọc.
+     */
+    private int pendingMiniSpawnCount;
     private float direction = 1f;       // 1 = clockwise, -1 = counter-clockwise; flips on wall bounce
 
     public BossController(float startX, float startY) {
-        this.baseAI = new EnemyController();
         this.phase = Phase.PHASE_1;
         this.circleAngle = 0f;
         this.circleCenter = new Vector2(startX, startY);
         this.miniSpawnTimer = GameConfig.BOSS_MINI_SPAWN_INTERVAL;
-        this.pendingMiniSpawn = false;
+        this.pendingMiniSpawnCount = 0;
     }
 
     @Override
     public List<Projectile> update(Tank tank, float delta, UpdateContext ctx) {
         if (!tank.getHealth().isAlive()) return Collections.emptyList();
+
+        // Khi chưa active (Player chưa bước vào phòng / cửa chưa mở), Boss đứng yên ở giữa phòng
+        if (!ctx.areaActive) {
+            tank.getMovement().setPosition(circleCenter.x, circleCenter.y);
+            return Collections.emptyList();
+        }
+
         if (!ctx.playerAlive) return Collections.emptyList();
 
         tank.getTurret().update(delta);
@@ -63,11 +73,7 @@ public class BossController implements TankController {
         }
 
         // ── Phase transition ────────────────────────────────────────────────
-        if (phase == Phase.PHASE_1 &&
-            tank.getHealth().getHp() <= tank.getHealth().getMaxHp()
-                * GameConfig.BOSS_PHASE2_THRESHOLD) {
-            phase = Phase.PHASE_2;
-        }
+        checkPhaseTransitions(tank);
 
         // ── Circular orbit ──────────────────────────────────────────────────
         circleAngle += GameConfig.BOSS_CIRCLE_SPEED_DEG * delta * direction;
@@ -84,16 +90,43 @@ public class BossController implements TankController {
             ? Collections.emptyList()
             : fireSpread(tank);
 
-        // ── Phase 2 — mini-tank spawning ────────────────────────────────────
-        if (phase == Phase.PHASE_2) {
+        // ── Phase 2/3 — periodic mini-tank spawning ─────────────────────────
+        if (phase == Phase.PHASE_2 || phase == Phase.PHASE_3) {
             miniSpawnTimer -= delta;
             if (miniSpawnTimer <= 0f) {
-                miniSpawnTimer = GameConfig.BOSS_MINI_SPAWN_INTERVAL;
-                pendingMiniSpawn = true;
+                // Reset timer theo phase hiện tại
+                miniSpawnTimer = (phase == Phase.PHASE_3)
+                    ? GameConfig.BOSS_PHASE3_MINI_SPAWN_INTERVAL
+                    : GameConfig.BOSS_MINI_SPAWN_INTERVAL;
+                pendingMiniSpawnCount += (phase == Phase.PHASE_3)
+                    ? GameConfig.BOSS_PHASE3_MINI_TANK_COUNT
+                    : GameConfig.BOSS_MINI_TANK_COUNT;
             }
         }
 
         return shots;
+    }
+
+    /**
+     * Kiểm tra và xử lý chuyển phase.
+     * Khi chuyển phase mới → spawn mini-tank ngay lập tức (immediate spawn).
+     */
+    private void checkPhaseTransitions(Tank tank) {
+        float hpRatio = tank.getHealth().getHp() / tank.getHealth().getMaxHp();
+
+        if (phase == Phase.PHASE_1 && hpRatio <= GameConfig.BOSS_PHASE2_THRESHOLD) {
+            phase = Phase.PHASE_2;
+            miniSpawnTimer = GameConfig.BOSS_MINI_SPAWN_INTERVAL;
+            // Spawn ngay lập tức khi vào Phase 2
+            pendingMiniSpawnCount += GameConfig.BOSS_MINI_TANK_COUNT;
+        }
+
+        if (phase == Phase.PHASE_2 && hpRatio <= GameConfig.BOSS_PHASE3_THRESHOLD) {
+            phase = Phase.PHASE_3;
+            miniSpawnTimer = GameConfig.BOSS_PHASE3_MINI_SPAWN_INTERVAL;
+            // Spawn ngay lập tức khi vào Phase 3
+            pendingMiniSpawnCount += GameConfig.BOSS_PHASE3_MINI_TANK_COUNT;
+        }
     }
 
     /**
@@ -141,15 +174,14 @@ public class BossController implements TankController {
     }
 
     /**
-     * Checks and clears the mini-spawn flag.
-     * Returns {@code true} once per spawn cycle — caller should spawn mini-tanks.
+     * Checks and clears the mini-spawn pending count.
+     * Returns the number of mini-tanks that should be spawned this frame (≥ 0).
+     * Returns 0 if no spawn is due — caller must check {@code > 0} before spawning.
      */
-    public boolean consumePendingMiniSpawn() {
-        if (pendingMiniSpawn) {
-            pendingMiniSpawn = false;
-            return true;
-        }
-        return false;
+    public int consumePendingMiniSpawn() {
+        int count = pendingMiniSpawnCount;
+        pendingMiniSpawnCount = 0;
+        return count;
     }
 
     public Phase getPhase() {

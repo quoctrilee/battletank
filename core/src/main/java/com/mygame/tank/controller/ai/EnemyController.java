@@ -6,6 +6,7 @@ import com.mygame.tank.controller.UpdateContext;
 import com.mygame.tank.entity.Projectile;
 import com.mygame.tank.entity.Tank;
 import com.mygame.tank.entity.component.turret.EnemyTurretComponent;
+import com.badlogic.gdx.math.Vector2;
 
 import java.util.Collections;
 import java.util.List;
@@ -75,7 +76,11 @@ public class EnemyController implements TankController {
                 if (dist <= GameConfig.ENEMY_ATTACK_RANGE) {
                     state = State.ATTACK;
                 } else {
-                    tank.getMovement().moveToward(ctx.playerPos, tank.getStats().maxSpeed, delta);
+                    // Dùng A* waypoint nếu có, ngược lại đi thẳng đến player
+                    Vector2 moveTarget = (ctx.pathfindingTarget != null)
+                        ? ctx.pathfindingTarget
+                        : ctx.playerPos;
+                    tank.getMovement().moveToward(moveTarget, tank.getStats().maxSpeed, delta);
                 }
                 break;
 

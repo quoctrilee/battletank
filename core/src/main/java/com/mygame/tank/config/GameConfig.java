@@ -12,18 +12,103 @@ public final class GameConfig {
     public static final int MAP_TILE_SIZE = 48;
     public static final int MAP_COLS = 60;
     public static final int MAP_ROWS = 60;
-    public static final float MAP_WIDTH = MAP_COLS * MAP_TILE_SIZE;   // 1920 px
-    public static final float MAP_HEIGHT = MAP_ROWS * MAP_TILE_SIZE;   // 1920 px
+    public static final float MAP_WIDTH = MAP_COLS * MAP_TILE_SIZE;   // 2880 px
+    public static final float MAP_HEIGHT = MAP_ROWS * MAP_TILE_SIZE;   // 2880 px
+
+    // ─── Dungeon Generation (BSP) ─────────────────────────────────────────────
+    /**
+     * Số cấp độ chia BSP (3 cấp = 8 leaf node = 8 phòng tối đa).
+     */
+    public static final int BSP_MAX_DEPTH = 3;
+    /**
+     * Kích thước phòng tối thiểu (tile).
+     */
+    public static final int ROOM_MIN_TILES = 10;
+    /**
+     * Kích thước phòng tối đa (tile).
+     */
+    public static final int ROOM_MAX_TILES = 15;
+    /**
+     * Margin tối thiểu giữa cạnh phòng và cạnh vùng BSP (tile).
+     */
+    public static final int ROOM_MARGIN_TILES = 1;
+    /**
+     * Độ rộng hành lang nối phòng (tile).
+     */
+    public static final int CORRIDOR_WIDTH_TILES = 2;
+    /**
+     * Độ dài tối đa cho mỗi đoạn hành lang thẳng (tile).
+     * Nếu đoạn ngang hoặc dọc của hành lang chữ L vượt ngưỡng này, hành lang
+     * sẽ được chia đệ quy qua điểm trung gian cho đến khi mỗi đoạn ≤ giá trị này.
+     */
+    public static final int MAX_CORRIDOR_LENGTH_TILES = 6;
+    /**
+     * Kích thước 1 khối cover (tile) — vuông NxN.
+     */
+    public static final int COVER_SIZE_TILES = 1;
+    /**
+     * Số khối cover tối thiểu sinh trong 1 phòng ENEMY/BOSS.
+     */
+    public static final int COVER_MIN_PER_ROOM = 0;
+    /**
+     * Số khối cover tối đa sinh trong 1 phòng ENEMY/BOSS.
+     */
+    public static final int COVER_MAX_PER_ROOM = 3;
+    /**
+     * Khoảng đệm tối thiểu (tile) giữa cover và tường phòng.
+     */
+    public static final int COVER_WALL_PADDING_TILES = 2;
+    /**
+     * Khoảng đệm tối thiểu (tile) giữa tâm phòng (spawn boss) và cover.
+     */
+    public static final int COVER_CENTER_CLEARANCE_TILES = 1;
+
+    // ─── Enemy spawn spacing ──────────────────────────────────────────────────
+    /**
+     * Khoảng cách tối thiểu (pixel) giữa 2 điểm spawn quái trong cùng 1 phòng.
+     */
+    public static final float ENEMY_SPAWN_MIN_DISTANCE = 140f;
+
+    // ─── Fog of War ───────────────────────────────────────────────────────────
+    /**
+     * Bán trục X của ellipse nhìn thấy quanh player (pixel world) — phủ hết nửa viewport.
+     */
+    public static final float FOG_RADIUS_X = 540f;
+    /**
+     * Bán trục Y của ellipse nhìn thấy quanh player (pixel world) — phủ hết nửa viewport.
+     */
+    public static final float FOG_RADIUS_Y = 360f;
+    /**
+     * Tỉ lệ (0-1) bán kính trong cùng luôn sáng 100% (không bị mờ dần).
+     * Vùng còn lại (từ tỉ lệ này ra tới viền) sẽ mờ dần theo smoothstep.
+     */
+    public static final float FOG_INNER_SOLID_RATIO = 0.4f;
+    /**
+     * Độ sáng tối thiểu ở rìa/ngoài fog mask (0 = đen hoàn toàn, 1 = không
+     * tối). Tăng giá trị này = toàn bộ vùng fog (kể cả rìa) sáng hơn.
+     */
+    public static final float FOG_EDGE_MIN_BRIGHTNESS = 0.1f;
+
+    // ─── Camera smooth follow ─────────────────────────────────────────────────
+    /**
+     * Hệ số lerp camera (0=không theo, 1=snap ngay).
+     */
+    public static final float CAMERA_LERP = 1f;
+
+    // ─── A* Pathfinding ───────────────────────────────────────────────────────
+    /**
+     * Khoảng thời gian (giây) giữa 2 lần tính lại đường đi A* cho mỗi enemy.
+     */
+    public static final float ENEMY_PATHFIND_INTERVAL = 0.5f;
 
     // ─── Camera / Viewport ────────────────────────────────────────────────────
-    public static final float VIEWPORT_WIDTH = 960f;
+    public static final float VIEWPORT_WIDTH = 1080f;
     public static final float VIEWPORT_HEIGHT = 540f;
 
     // ─── Player ───────────────────────────────────────────────────────────────
     public static final float PLAYER_MAX_SPEED = 160f;   // px/s
     public static final float PLAYER_ACCELERATION = 450f;   // px/s^2
-    public static final float PLAYER_DECELERATION = 600f;   // px/s^2
-    public static final float PLAYER_ROTATION_SPEED = 180f;   // deg/s
+    public static final float PLAYER_DECELERATION = 500f;   // px/s^2
     public static final float PLAYER_MAX_HP = 200f;
     public static final float PLAYER_WIDTH = 40f;
     public static final float PLAYER_HEIGHT = 40f;
@@ -147,9 +232,9 @@ public final class GameConfig {
     public static final float ENEMY_HEIGHT = 38f;
 
     // Enemy AI logic parameters
-    public static final float ENEMY_DETECT_RANGE = 380f;
+    public static final float ENEMY_DETECT_RANGE = 320f;
     public static final float ENEMY_ATTACK_RANGE = 260f;
-    public static final float ENEMY_LOST_TIME = 4f;
+    public static final float ENEMY_LOST_TIME = 3f;
 
     // ─── Boss — Iron Guard ───────────────────────────────────────────────────
     public static final float BOSS_HP = 600f;
@@ -161,10 +246,24 @@ public final class GameConfig {
     public static final float BOSS_SPREAD_ANGLE_DEG = 30f;
     public static final float BOSS_BULLET_SPEED = 260f;
     public static final float BOSS_BULLET_DAMAGE = 18f;
-    public static final float BOSS_CIRCLE_RADIUS = 200f;
+    public static final float BOSS_CIRCLE_RADIUS = 110f;
     public static final float BOSS_CIRCLE_SPEED_DEG = 60f;
     public static final float BOSS_MINI_SPAWN_INTERVAL = 12f;
     public static final int BOSS_MINI_TANK_COUNT = 2;
+
+    // ─── Boss Phase 3 ────────────────────────────────────────────────────────
+    /**
+     * HP threshold để vào Phase 3 (25% HP còn lại).
+     */
+    public static final float BOSS_PHASE3_THRESHOLD = 0.25f;
+    /**
+     * Interval spawn mini-tank ở Phase 3 (nhanh hơn Phase 2).
+     */
+    public static final float BOSS_PHASE3_MINI_SPAWN_INTERVAL = 7f;
+    /**
+     * Số mini-tank mỗi lần spawn ở Phase 3.
+     */
+    public static final int BOSS_PHASE3_MINI_TANK_COUNT = 3;
 
     // ─── Debug Settings ──────────────────────────────────────────────────────
     public static final boolean DEBUG_DEFAULT = false;
