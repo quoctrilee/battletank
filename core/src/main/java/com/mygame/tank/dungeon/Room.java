@@ -6,22 +6,7 @@ import com.badlogic.gdx.math.Vector2;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Đại diện một phòng trong dungeon.
- *
- * <p>Mỗi phòng là một hình chữ nhật trong không gian thế giới (world coords, pixel).
- * Phòng có kiểu (SPAWN / ENEMY / BOSS) và danh sách spawn point bên trong.
- */
 public class Room {
-
-    /**
-     * Kiểu phòng:
-     * <ul>
-     *   <li>SPAWN — phòng bắt đầu, không có địch</li>
-     *   <li>ENEMY — phòng quái thường</li>
-     *   <li>BOSS  — phòng boss, có cửa khóa đến khi boss chết</li>
-     * </ul>
-     */
     public enum Type {SPAWN, ENEMY, BOSS}
 
     /**
@@ -54,12 +39,6 @@ public class Room {
      * Vị trí spawn boss (chỉ có ở phòng BOSS).
      */
     public Vector2 bossSpawnPoint;
-
-    /**
-     * true khi tất cả địch trong phòng đã bị tiêu diệt.
-     */
-    public boolean cleared = false;
-
     /**
      * Danh sách khối cover (chướng ngại không phá hủy được) bên trong phòng.
      * Mỗi Rectangle là vùng world-coords (pixel) của 1 khối cover.

@@ -4,36 +4,7 @@ import com.mygame.tank.entity.Tank;
 
 import java.util.*;
 
-/**
- * Quản lý tiến trình dọn phòng trong dungeon.
- * Thay thế {@link com.mygame.tank.world.AreaManager}.
- *
- * <h3>Logic:</h3>
- * <ul>
- *   <li>Phòng SPAWN luôn cleared ngay từ đầu.</li>
- *   <li>Phòng ENEMY: cleared khi tất cả quái đã chết → mở cửa sang phòng tiếp theo.</li>
- *   <li>Phòng BOSS: có cửa khóa (boss room door) đến khi boss chết.
- *       Sau khi boss chết VÀ tất cả mini-tank do boss sinh ra cũng chết
- *       → cleared → mở cửa sang phòng tiếp theo.</li>
- *   <li>Một phòng chỉ "active" (quái tấn công) khi phòng trước đã cleared.</li>
- * </ul>
- *
- * <h3>Win condition:</h3>
- * <p>Chỉ cần phòng BOSS <em>cuối cùng</em> (theo thứ tự tuyến tính) được cleared.
- * Không cần tất cả boss rooms đều cleared (phòng boss trước đã phải clear mới
- * đến được phòng boss cuối, nên condition này đủ).
- *
- * <h3>Entrance door — cơ chế khóa (đã sửa):</h3>
- * <p>Entrance door của một phòng CHƯA CLEAR mặc định LUÔN KHÓA ngay khi
- * phòng đó active (phòng trước đã clear) — {@link #isDoorOpen(String)} trả
- * false cho tới khi phòng được clear. Điều này chặn player bước vào SÂU vào
- * phòng kế tiếp (chỉ có thể áp sát cửa, bị đẩy lùi lại) cho tới khi dọn xong
- * phòng hiện tại.
- */
 public class RoomProgressionManager {
-
-    // ─── State ────────────────────────────────────────────────────────────────
-
     /**
      * Quái được đăng ký theo room key (ROOM_N).
      * Với phòng BOSS: gồm boss + mini-tank sinh ra trong trận.

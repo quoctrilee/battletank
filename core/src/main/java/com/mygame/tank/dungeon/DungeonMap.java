@@ -59,7 +59,7 @@ public class DungeonMap {
      * @param seed random seed (dùng System.currentTimeMillis() để luôn khác nhau)
      */
     public void generate(long seed) {
-        BSPDungeonGenerator gen = new BSPDungeonGenerator(seed);
+        GridWalkDungeonGenerator gen = new GridWalkDungeonGenerator(seed);
         gen.generate(GameConfig.MAP_COLS, GameConfig.MAP_ROWS);
 
         this.rooms = new ArrayList<>(gen.getRooms());
@@ -140,17 +140,23 @@ public class DungeonMap {
                 boolean xOverlap = (seg.x + seg.width > target.x) && (seg.x < target.x + target.width);
                 boolean crossesBottom = (seg.y < target.y) && (seg.y + seg.height > target.y);
                 if (xOverlap && crossesBottom) {
-                    float doorX = Math.round(seg.x / tileSize) * tileSize;
+                    // Snap CẢ điểm đầu VÀ điểm cuối theo lưới tile (không chỉ
+                    // doorX rồi giữ nguyên seg.width) để độ rộng cửa luôn khớp
+                    // đúng số tile của hành lang thật, kể cả khi seg.x/seg.width
+                    // vốn lệch lưới do CORRIDOR_WIDTH_TILES lẻ.
+                    float startX = (float) Math.floor(seg.x / tileSize) * tileSize;
+                    float endX = (float) Math.ceil((seg.x + seg.width) / tileSize) * tileSize;
                     float doorY = target.y - tileSize;
-                    return new Rectangle(doorX, doorY, seg.width, tileSize);
+                    return new Rectangle(startX, doorY, endX - startX, tileSize);
                 }
 
                 // 2. Cắt qua cạnh trên của phòng (Top edge: y = target.y + target.height)
                 boolean crossesTop = (seg.y < target.y + target.height) && (seg.y + seg.height > target.y + target.height);
                 if (xOverlap && crossesTop) {
-                    float doorX = Math.round(seg.x / tileSize) * tileSize;
+                    float startX = (float) Math.floor(seg.x / tileSize) * tileSize;
+                    float endX = (float) Math.ceil((seg.x + seg.width) / tileSize) * tileSize;
                     float doorY = target.y + target.height;
-                    return new Rectangle(doorX, doorY, seg.width, tileSize);
+                    return new Rectangle(startX, doorY, endX - startX, tileSize);
                 }
             }
 
@@ -160,16 +166,18 @@ public class DungeonMap {
                 boolean crossesLeft = (seg.x < target.x) && (seg.x + seg.width > target.x);
                 if (yOverlap && crossesLeft) {
                     float doorX = target.x - tileSize;
-                    float doorY = Math.round(seg.y / tileSize) * tileSize;
-                    return new Rectangle(doorX, doorY, tileSize, seg.height);
+                    float startY = (float) Math.floor(seg.y / tileSize) * tileSize;
+                    float endY = (float) Math.ceil((seg.y + seg.height) / tileSize) * tileSize;
+                    return new Rectangle(doorX, startY, tileSize, endY - startY);
                 }
 
                 // 4. Cắt qua cạnh phải của phòng (Right edge: x = target.x + target.width)
                 boolean crossesRight = (seg.x < target.x + target.width) && (seg.x + seg.width > target.x + target.width);
                 if (yOverlap && crossesRight) {
                     float doorX = target.x + target.width;
-                    float doorY = Math.round(seg.y / tileSize) * tileSize;
-                    return new Rectangle(doorX, doorY, tileSize, seg.height);
+                    float startY = (float) Math.floor(seg.y / tileSize) * tileSize;
+                    float endY = (float) Math.ceil((seg.y + seg.height) / tileSize) * tileSize;
+                    return new Rectangle(doorX, startY, tileSize, endY - startY);
                 }
             }
         }

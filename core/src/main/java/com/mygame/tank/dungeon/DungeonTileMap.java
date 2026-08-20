@@ -5,22 +5,6 @@ import com.mygame.tank.config.GameConfig;
 
 import java.util.ArrayList;
 import java.util.List;
-
-/**
- * Chuyển layout dungeon trừu tượng (Room + Corridor) sang lưới tile 2D.
- *
- * <h3>Quy ước lưới:</h3>
- * <ul>
- *   <li>{@code WALL  = 0} — tường, không thể đi qua</li>
- *   <li>{@code FLOOR = 1} — sàn, có thể đi qua</li>
- * </ul>
- *
- * <p>Tile (col, row) ứng với vùng pixel [col×TILE, (col+1)×TILE] × [row×TILE, (row+1)×TILE].
- * Trục Y đi lên (LibGDX convention): row 0 là hàng dưới cùng.
- *
- * <p>Sau khi build, cung cấp danh sách {@link Rectangle} collision cho CollisionSystem
- * (gộp theo từng hàng — run-length encoding) để giảm số lượng hình chữ nhật kiểm tra.
- */
 public class DungeonTileMap {
 
     public static final byte WALL = 0;
@@ -170,17 +154,6 @@ public class DungeonTileMap {
         return grid[row][col] == FLOOR;
     }
 
-    // ─── Query helpers ────────────────────────────────────────────────────────
-
-    /**
-     * @return true nếu vị trí pixel (wx, wy) nằm trên tile FLOOR.
-     */
-    public boolean isWalkable(float wx, float wy) {
-        int col = (int) (wx / TILE);
-        int row = (int) (wy / TILE);
-        if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return false;
-        return grid[row][col] == FLOOR;
-    }
 
     /**
      * @return giá trị tile tại tọa độ tile (col, row).
@@ -188,11 +161,6 @@ public class DungeonTileMap {
     public byte getTile(int col, int row) {
         if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return WALL;
         return grid[row][col];
-    }
-
-    // ─── Getters ─────────────────────────────────────────────────────────────
-    public byte[][] getGrid() {
-        return grid;
     }
 
     public List<Rectangle> getCollisionRects() {
@@ -206,11 +174,4 @@ public class DungeonTileMap {
         return coverCollisionRects;
     }
 
-    public int getCols() {
-        return COLS;
-    }
-
-    public int getRows() {
-        return ROWS;
-    }
 }
