@@ -92,6 +92,12 @@ public class GameRenderer {
      */
     private final SpriteAssets assets;
 
+    /**
+     * Optional Android input source — set via {@link #setAndroidInputSource}
+     * to enable floating joystick + zone overlay rendering.
+     */
+    private com.mygame.tank.controller.player.AndroidInputSource androidInput = null;
+
     public GameRenderer() {
         shapeRenderer = new ShapeRenderer();
         worldBatch = new SpriteBatch();
@@ -726,6 +732,17 @@ public class GameRenderer {
 
     // ─── Screen-space HUD ────────────────────────────────────────────────────
 
+    /**
+     * Provide the Android input source so the renderer can draw the
+     * floating joystick + zone overlay on top of the HUD.
+     * Call once after creating {@link AndroidInputSource}; pass {@code null}
+     * on Desktop.
+     */
+    public void setAndroidInputSource(
+            com.mygame.tank.controller.player.AndroidInputSource src) {
+        this.androidInput = src;
+    }
+
     private void renderHud(GameWorld world) {
         int sw = Gdx.graphics.getWidth();
         int sh = Gdx.graphics.getHeight();
@@ -747,6 +764,23 @@ public class GameRenderer {
             renderWeaponHub(ws, sw, sh);
         }
 
+        // Android zone + joystick overlay (drawn inside the same Filled block)
+        if (androidInput != null) {
+            renderAndroidZones(sw, sh);
+            renderFloatingJoystick(
+                androidInput.isMoveActive(),
+                androidInput.getMoveOriginX(), androidInput.getMoveOriginY(),
+                androidInput.getMoveKnobX(),   androidInput.getMoveKnobY(),
+                com.mygame.tank.controller.player.AndroidInputSource.MOVE_RADIUS,
+                new Color(0.25f, 0.75f, 0.30f, 0.85f));
+            renderFloatingJoystick(
+                androidInput.isAimActive(),
+                androidInput.getAimOriginX(), androidInput.getAimOriginY(),
+                androidInput.getAimKnobX(),   androidInput.getAimKnobY(),
+                com.mygame.tank.controller.player.AndroidInputSource.AIM_RADIUS,
+                new Color(0.30f, 0.60f, 1.00f, 0.85f));
+        }
+
         shapeRenderer.end();
 
         // ── Text + icon sprite pass ────────────────────────────────────────────
@@ -764,12 +798,97 @@ public class GameRenderer {
 
         // Draw weapon slot sprite icons on top of text (uses hudBatch which is already open)
         renderWeaponSlotIcons(ws, sw);
+        renderEquipmentSlotIcons(ws, sw);
 
         if (ws != null && ws.isHubOpen()) {
+            renderWeaponHubIcons(ws, sw, sh);
             renderWeaponHubText(ws, sw, sh);
         }
 
+        // Android zone labels
+        if (androidInput != null) {
+            renderAndroidZoneLabels(sw, sh);
+        }
+
         hudBatch.end();
+    }
+
+    // ─── Android overlay ──────────────────────────────────────────────────────
+
+    /**
+     * Zone overlay — dividers and fire flash removed per user request.
+     * Method kept for future use; currently draws nothing.
+     */
+    private void renderAndroidZones(int sw, int sh) {
+        // intentionally empty — divider lines and fire-flash overlay removed
+    }
+
+    /**
+     * Draws zone labels (FIRE / AIM) using the hudBatch text pass.
+     * Must be called while {@link #hudBatch} is open.
+     */
+    private void renderAndroidZoneLabels(int sw, int sh) {
+        int halfW = sw / 2;
+        int halfH = sh / 2;
+
+        // "FIRE" label — top-right zone centre, always subtle
+        font.setColor(new Color(1f, 1f, 1f, 0.18f));
+        layout.setText(font, "FIRE");
+        font.draw(hudBatch, layout,
+            halfW + (halfW - layout.width) / 2f,
+            halfH + (sh - halfH) / 2f + layout.height / 2f);
+
+        // "AIM" label — bottom-right zone centre
+        font.setColor(new Color(0.5f, 0.8f, 1f, androidInput.isAimActive() ? 0.50f : 0.18f));
+        layout.setText(font, "AIM");
+        font.draw(hudBatch, layout,
+            halfW + (halfW - layout.width) / 2f,
+            halfH / 2f + layout.height / 2f);
+
+        font.setColor(Color.WHITE);
+    }
+
+    /**
+     * Draws a floating joystick (outer ring + knob) in HUD screen space.
+     * Coordinates are raw screen coords (Y=0 at top) and are converted to
+     * HUD coords (Y=0 at bottom) before drawing.
+     *
+     * @param active   whether a finger is currently down
+     * @param originX  anchor X in screen coords
+     * @param originY  anchor Y in screen coords
+     * @param knobX    knob X in screen coords
+     * @param knobY    knob Y in screen coords
+     * @param radius   outer ring radius (px)
+     * @param color    tint color
+     */
+    private void renderFloatingJoystick(boolean active,
+            float originX, float originY,
+            float knobX,   float knobY,
+            float radius,  Color color) {
+        if (!active) return;
+
+        int sh = Gdx.graphics.getHeight();
+        // Convert screen-Y (top=0) → HUD-Y (bottom=0)
+        float ox = originX,  oy = sh - originY;
+        float kx = knobX,    ky = sh - knobY;
+
+        // Outer ring — filled circle, low alpha
+        shapeRenderer.setColor(color.r, color.g, color.b, 0.20f);
+        shapeRenderer.circle(ox, oy, radius, 40);
+
+        // Ring border — slightly brighter
+        shapeRenderer.setColor(color.r, color.g, color.b, 0.55f);
+        // Draw as thin filled annulus (two circles subtracted — approx by border only)
+        // Use a 4px wide ring: draw full then subtract — not possible with ShapeRenderer,
+        // so draw outline by drawing larger then smaller circle.
+        shapeRenderer.circle(ox, oy, radius,       40);
+        shapeRenderer.setColor(0f, 0f, 0f, 0.01f); // near-transparent punch-out
+        shapeRenderer.circle(ox, oy, radius - 4f,  40);
+
+        // Knob — solid circle
+        float knobR = radius * com.mygame.tank.controller.player.AndroidInputSource.KNOB_FRAC;
+        shapeRenderer.setColor(color.r, color.g, color.b, 0.85f);
+        shapeRenderer.circle(kx, ky, knobR, 32);
     }
 
     // ─── HP bar ───────────────────────────────────────────────────────────────
@@ -792,8 +911,8 @@ public class GameRenderer {
 
     // ─── Weapon slots (3 slots, bottom center) ────────────────────────────────
 
-    private static final int WEAPON_SLOT_SIZE = 52;
-    private static final int WEAPON_SLOT_GAP = 8;
+    public  static final int WEAPON_SLOT_SIZE = 100;
+    public  static final int WEAPON_SLOT_GAP  = 10;
 
     private int weaponSlotX(int sw, int slot) {
         int totalW = GameConfig.DAMAGE_WEAPON_SLOTS * WEAPON_SLOT_SIZE
@@ -843,10 +962,6 @@ public class GameRenderer {
         }
     }
 
-    /**
-     * Draws weapon icon sprites on top of the HUD slot backgrounds.
-     * Called from {@link #renderHud} after the ShapeRenderer pass.
-     */
     private void renderWeaponSlotIcons(WeaponSystem ws, int sw) {
         if (ws == null) return;
         int slotY = 16;
@@ -855,22 +970,46 @@ public class GameRenderer {
 
         for (int i = 0; i < GameConfig.DAMAGE_WEAPON_SLOTS; i++) {
             WeaponType type = ws.getWeaponSlots()[i];
-            if (type != WeaponType.DEFAULT_BULLET) continue; // only sprite icon for default weapon
+            if (type == null) continue;
 
             int sx = weaponSlotX(sw, i);
-            TextureRegion icon = assets.defaultWeaponIcon;
-            hudBatch.setColor(1f, 1f, 1f, 1f);
-            hudBatch.draw(icon, sx + padding, slotY + padding, iconSize, iconSize);
+            com.badlogic.gdx.graphics.Texture icon = assets.weaponIcons.get(type);
+            if (icon != null) {
+                hudBatch.setColor(1f, 1f, 1f, 1f);
+                hudBatch.draw(icon, sx + padding, slotY + padding, iconSize, iconSize);
+            }
+        }
+        hudBatch.setColor(Color.WHITE);
+    }
+
+    /**
+     * Draws equipment icon sprites on top of the HUD slot backgrounds.
+     */
+    private void renderEquipmentSlotIcons(WeaponSystem ws, int sw) {
+        if (ws == null) return;
+        int padding = 6;
+        int iconSize = EQUIP_SLOT_SIZE - padding * 2;
+
+        for (int i = 0; i < GameConfig.EQUIPMENT_SLOTS; i++) {
+            EquipmentType equip = ws.getEquipSlots()[i];
+            if (equip == null) continue;
+
+            int sx = EQUIP_SLOT_X0 + i * (EQUIP_SLOT_SIZE + EQUIP_SLOT_GAP);
+            com.badlogic.gdx.graphics.Texture icon = assets.equipmentIcons.get(equip);
+            if (icon != null) {
+                hudBatch.setColor(1f, 1f, 1f, 1f);
+                hudBatch.draw(icon, sx + padding, EQUIP_SLOT_Y + padding, iconSize, iconSize);
+            }
         }
         hudBatch.setColor(Color.WHITE);
     }
 
     // ─── Equipment slots (3 slots, bottom left) ───────────────────────────────
 
-    private static final int EQUIP_SLOT_SIZE = 44;
-    private static final int EQUIP_SLOT_GAP = 6;
-    private static final int EQUIP_SLOT_X0 = 20;
-    private static final int EQUIP_SLOT_Y = 16;
+    public static final int EQUIP_SLOT_SIZE = 80;
+    public static final int EQUIP_SLOT_GAP  = 8;
+    public static final int EQUIP_SLOT_X0   = 20;
+    public static final int EQUIP_SLOT_Y    = 16;
 
     private void renderEquipmentSlots(WeaponSystem ws, int sw, int sh) {
         if (ws == null) return;
@@ -1029,7 +1168,7 @@ public class GameRenderer {
 
             // Weapon short name
             font.setColor(ws.getActiveWeaponSlot() == i ? Color.WHITE : Color.LIGHT_GRAY);
-            font.draw(hudBatch, type.shortName, sx + 8, 16 + WEAPON_SLOT_SIZE - 8);
+            font.draw(hudBatch, type.shortName, sx + 4, 12);
 
             // Ammo count
             if (type.maxAmmo > 0) {
@@ -1062,7 +1201,7 @@ public class GameRenderer {
 
             // Short name
             font.setColor(ws.getEquipCooldown()[i] > 0f ? Color.GRAY : Color.WHITE);
-            font.draw(hudBatch, equip.shortName, sx + 5, EQUIP_SLOT_Y + EQUIP_SLOT_SIZE - 6);
+            font.draw(hudBatch, equip.shortName, sx + 4, EQUIP_SLOT_Y - 2);
 
             // Cooldown timer
             float cd = ws.getEquipCooldown()[i];
@@ -1072,6 +1211,29 @@ public class GameRenderer {
             }
         }
         font.setColor(Color.WHITE);
+    }
+
+    private void renderWeaponHubIcons(WeaponSystem ws, int sw, int sh) {
+        if (ws == null) return;
+        int cardW = 110, cardH = 220, cardGap = 10;
+        int totalCardsW = GameConfig.DAMAGE_WEAPON_SLOTS * cardW
+            + (GameConfig.DAMAGE_WEAPON_SLOTS - 1) * cardGap;
+        int cardStartX = sw / 2 - totalCardsW / 2;
+        int cardY = sh / 2 - cardH / 2;
+        int iconSize = 80;
+
+        for (int i = 0; i < GameConfig.DAMAGE_WEAPON_SLOTS; i++) {
+            WeaponType type = ws.getWeaponSlots()[i];
+            if (type == null) continue;
+            
+            int cx = cardStartX + i * (cardW + cardGap);
+            com.badlogic.gdx.graphics.Texture icon = assets.weaponIcons.get(type);
+            if (icon != null) {
+                hudBatch.setColor(1f, 1f, 1f, 1f);
+                hudBatch.draw(icon, cx + (cardW - iconSize) / 2f, cardY + cardH - 110, iconSize, iconSize);
+            }
+        }
+        hudBatch.setColor(Color.WHITE);
     }
 
     private void renderWeaponHubText(WeaponSystem ws, int sw, int sh) {
@@ -1107,22 +1269,22 @@ public class GameRenderer {
             font.getData().setScale(1f);
 
             font.setColor(selected ? Color.YELLOW : Color.LIGHT_GRAY);
-            font.draw(hudBatch, type.displayName, cx + 6, cardY + cardH - 28);
+            font.draw(hudBatch, type.displayName, cx + 6, cardY + cardH - 130);
 
             font.setColor(Color.LIGHT_GRAY);
             // Stats
             if (type.maxAmmo < 0) {
-                font.draw(hudBatch, "Ammo: ∞", cx + 6, cardY + cardH - 50);
+                font.draw(hudBatch, "Ammo: ∞", cx + 6, cardY + cardH - 150);
             } else {
                 int ammo = ws.getWeaponAmmo()[i];
                 font.setColor(ammo > 0 ? Color.CYAN : Color.RED);
-                font.draw(hudBatch, "Ammo: " + ammo + "/" + type.maxAmmo, cx + 6, cardY + cardH - 50);
+                font.draw(hudBatch, "Ammo: " + ammo + "/" + type.maxAmmo, cx + 6, cardY + cardH - 150);
             }
             font.setColor(Color.LIGHT_GRAY);
             float cd = ws.getWeaponCooldown()[i];
             if (cd > 0f) {
                 font.setColor(Color.ORANGE);
-                font.draw(hudBatch, String.format("CD: %.1fs", cd), cx + 6, cardY + cardH - 68);
+                font.draw(hudBatch, String.format("CD: %.1fs", cd), cx + 6, cardY + cardH - 168);
             }
 
             // Group label

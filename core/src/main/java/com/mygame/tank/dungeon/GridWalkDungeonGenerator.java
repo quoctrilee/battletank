@@ -6,55 +6,9 @@ import com.mygame.tank.config.GameConfig;
 
 import java.util.*;
 
-/**
- * Thuật toán sinh dungeon ngẫu nhiên dùng GRID-BASED RANDOM WALK để đặt vị
- * trí phòng, thay thế hoàn toàn cho BSP Tree trước đây.
- *
- * <h3>Vì sao đổi từ BSP sang Random Walk:</h3>
- * <p>Bản BSP cũ chỉ dùng cây BSP để ĐẶT vị trí 8 phòng (chia không gian
- * thành 8 vùng lá), rồi bỏ hẳn cấu trúc cây khi nối hành lang — thứ tự chơi
- * được suy ra sau đó bằng nearest-neighbor chain. Cách này có 2 vấn đề:
- * <ol>
- *   <li>Nearest-neighbor chain không đảm bảo 2 phòng liền kề trong chuỗi
- *       chơi cũng liền kề trong không gian → hành lang có thể rất dài, phải
- *       chia đệ quy qua điểm trung gian, tạo đường zigzag không tự nhiên,
- *       thậm chí cắt ngang qua phòng khác.</li>
- *   <li>Không có gì đảm bảo layout tuyến tính "đẹp" — phòng có thể bị bỏ
- *       lại ở giữa map, buộc hành lang phải vòng qua.</li>
- * </ol>
- *
- * <p>Random Walk giải quyết cả 2 vấn đề bằng cách đảm bảo TÍNH LIỀN KỀ THEO
- * CẤU TRÚC: mỗi bước đi luôn tạo 1 phòng mới ngay cạnh (trên lưới cell) phòng
- * vừa đi qua. Thứ tự sinh phòng CHÍNH LÀ thứ tự chơi — không cần suy luận
- * lại bằng BFS/nearest-neighbor. Hành lang giữa 2 phòng liên tiếp luôn ngắn
- * (đúng 1 cell) nên hầu như luôn là 1 đoạn thẳng hoặc 1 góc chữ L đơn giản.
- *
- * <h3>Các bước:</h3>
- * <ol>
- *   <li>Chia không gian (60×60 tile) thành lưới các CELL vuông, đủ lớn để
- *       chứa 1 phòng kích thước ngẫu nhiên (kể cả margin).</li>
- *   <li>Random Walk {@code TYPE_ORDER.length} bước trên lưới cell, bắt đầu
- *       gần góc bottom-left. Mỗi bước chọn ngẫu nhiên 1 trong 4 hướng
- *       (không lặp lại hướng ngược 180° vừa đi), bỏ qua cell đã thăm.</li>
- *   <li>Mỗi cell đã thăm → tạo 1 phòng (Room) kích thước ngẫu nhiên, đặt
- *       ngẫu nhiên bên trong cell (giống logic random cũ).</li>
- *   <li>Gán loại phòng theo thứ tự cố định: SPAWN, ENEMY, ENEMY, BOSS,
- *       ENEMY, ENEMY, BOSS, BOSS (thứ tự = thứ tự random walk).</li>
- *   <li>Nối hành lang chữ L giữa MỖI CẶP PHÒNG LIỀN KỀ trong chuỗi
- *       (0↔1, 1↔2, ...) — đúng {@code rooms.size() - 1} hành lang.</li>
- *   <li>Đặt spawn point quái/boss trong từng phòng.</li>
- *   <li>Sinh cover blocks ngẫu nhiên trong phòng ENEMY.</li>
- * </ol>
- */
 public class GridWalkDungeonGenerator {
 
-    // ─── Hằng số từ GameConfig ────────────────────────────────────────────────
     private static final int TILE = GameConfig.MAP_TILE_SIZE;
-    // Nếu CORRIDOR_WIDTH_TILES là số lẻ, CORR/2 mất phần dư nửa tile → toàn
-    // bộ corridor segment (và do đó door rect tính từ nó) bị lệch khỏi lưới
-    // tile đúng nửa TILE, khiến fillFloor()/door rect cắt hụt gần 1 tile so
-    // với bề rộng hành lang thật. Ép CORR lên số tile CHẴN gần nhất để HALF
-    // luôn là bội số nguyên của TILE, giữ corridor thẳng lưới tuyệt đối.
     private static final int CORRIDOR_WIDTH_TILES_EVEN =
         GameConfig.CORRIDOR_WIDTH_TILES + (GameConfig.CORRIDOR_WIDTH_TILES % 2);
     private static final int CORR = CORRIDOR_WIDTH_TILES_EVEN * TILE;

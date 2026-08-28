@@ -2,13 +2,19 @@ package com.mygame.tank.screen;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input.Keys;
+import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.mygame.tank.config.GameConfig;
+import com.mygame.tank.controller.player.AndroidInputSource;
+import com.mygame.tank.controller.player.AndroidUiSkin;
+import com.mygame.tank.controller.player.InputSourceFactory;
 import com.mygame.tank.controller.player.PlayerInput;
-import com.mygame.tank.controller.player.PlayerInputHandler;
+import com.mygame.tank.controller.player.PlayerInputSource;
 import com.mygame.tank.dungeon.DungeonMap;
 import com.mygame.tank.render.DebugRenderer;
 import com.mygame.tank.render.GameRenderer;
@@ -19,11 +25,18 @@ import com.mygame.tank.world.GameWorld;
  *
  * <p>Sinh dungeon mỗi khi bắt đầu/restart màn chơi.
  * Camera smooth-follow player bằng lerp.
+ *
+ * <h3>Input</h3>
+ * <p>Uses {@link PlayerInputSource} (via {@link InputSourceFactory}) so the same
+ * screen works on both Desktop (WASD + mouse) and Android (on-screen dual sticks).
+ * On Android, the {@link Stage} hosts the touchpad/button widgets rendered each frame.
  */
 public class GameScreen implements Screen {
 
     private final OrthographicCamera  camera;
-    private final PlayerInputHandler  inputHandler;
+    private final PlayerInputSource   inputSource;
+    private final Stage               uiStage;
+    private final AndroidUiSkin       androidUiSkin; // null on Desktop
     private final GameRenderer        gameRenderer;
     private final DebugRenderer       debugRenderer;
     private DungeonMap dungeonMap;
@@ -35,10 +48,35 @@ public class GameScreen implements Screen {
 
         gameRenderer  = new GameRenderer();
         debugRenderer = new DebugRenderer(GameConfig.DEBUG_DEFAULT);
-        inputHandler  = new PlayerInputHandler();
+
+        // ── UI Stage (needed for Android on-screen controls; harmless on Desktop) ──
+        uiStage = new Stage(new ScreenViewport());
+
+        // ── Build skin only on Android to avoid unnecessary Pixmap work on Desktop ──
+        boolean isAndroid = Gdx.app.getType() == com.badlogic.gdx.Application.ApplicationType.Android;
+        androidUiSkin = isAndroid ? new AndroidUiSkin() : null;
+
+        // ── Platform-aware input source ────────────────────────────────────────
+        inputSource = InputSourceFactory.create(
+                uiStage,
+                androidUiSkin != null ? androidUiSkin.getSkin() : null);
+
+        // On Android: use an InputMultiplexer so Stage handles equip/hub buttons
+        // first, and AndroidInputSource receives all unhandled raw touch events
+        // for the floating joystick + fire zones.
+        if (isAndroid && inputSource instanceof AndroidInputSource) {
+            AndroidInputSource androidSrc = (AndroidInputSource) inputSource;
+            // Tell GameRenderer to draw the joystick overlay
+            gameRenderer.setAndroidInputSource(androidSrc);
+            // Multiplexer: Stage first (buttons), then raw touch handler
+            Gdx.input.setInputProcessor(new InputMultiplexer(uiStage, androidSrc));
+        } else {
+            // Desktop: Stage is empty — just needs to receive events for safety
+            Gdx.input.setInputProcessor(uiStage);
+        }
     }
 
-    // ─── Screen lifecycle ─────────────────────────────────────────────────────
+    // ─── Screen lifecycle ─────────────────────────────────────────────────────────
 
     @Override
     public void render(float delta) {
@@ -47,18 +85,23 @@ public class GameScreen implements Screen {
         Gdx.gl.glClearColor(0.02f, 0.02f, 0.03f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        PlayerInput input = inputHandler.read(camera);
+        // Read input — always supply tank position so Android can compute aim point.
+        PlayerInput input = inputSource.read(camera, world.getPlayer().getPosition());
 
         if (Gdx.input.isKeyJustPressed(Keys.R)) restartGame();
         if (Gdx.input.isKeyJustPressed(Keys.F1)) debugRenderer.toggle();
 
         world.update(delta, input);
-        syncInputHandlerState();
+        syncInputSourceState();
 
         updateCamera(delta);
 
         gameRenderer.render(camera, world);
         debugRenderer.render(camera, world);
+
+        // Draw on-screen UI (touchpads, buttons) on top of everything else.
+        uiStage.act(delta);
+        uiStage.draw();
     }
 
     @Override public void show()   { ensureWorld(); }
@@ -71,6 +114,7 @@ public class GameScreen implements Screen {
         camera.setToOrtho(false, GameConfig.VIEWPORT_WIDTH, GameConfig.VIEWPORT_HEIGHT);
         camera.update();
         gameRenderer.onResize();
+        uiStage.getViewport().update(width, height, true);
     }
 
     @Override
@@ -78,6 +122,8 @@ public class GameScreen implements Screen {
         if (dungeonMap != null) dungeonMap.dispose();
         gameRenderer.dispose();
         debugRenderer.dispose();
+        uiStage.dispose();
+        if (androidUiSkin != null) androidUiSkin.dispose();
     }
 
     // ─── Camera: smooth follow bằng lerp ─────────────────────────────────────
@@ -117,7 +163,7 @@ public class GameScreen implements Screen {
         dungeonMap.generate(System.currentTimeMillis());
 
         world = new GameWorld(dungeonMap);
-        syncInputHandlerState();
+        syncInputSourceState();
 
         // Snap camera ngay đến player khi bắt đầu
         float px = world.getPlayer().getPosition().x;
@@ -130,7 +176,14 @@ public class GameScreen implements Screen {
         camera.update();
     }
 
-    private void syncInputHandlerState() {
-        if (world != null) inputHandler.setHubOpen(world.isPlayerHubOpen());
+    /**
+     * Mirrors hub-open state from {@link GameWorld} back to the input source so that
+     * {@link com.mygame.tank.controller.player.DesktopInputSource} can disambiguate
+     * keys 1-7 (equip vs. hub-slot), and
+     * {@link com.mygame.tank.controller.player.AndroidInputSource} can swap the
+     * equip/hub-slot button row.
+     */
+    private void syncInputSourceState() {
+        if (world != null) inputSource.setHubOpen(world.isPlayerHubOpen());
     }
 }

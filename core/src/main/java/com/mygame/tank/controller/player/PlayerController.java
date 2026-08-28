@@ -76,6 +76,11 @@ public class PlayerController implements TankController {
             WeaponSystem ws = turret.getWeaponSystem();
             if (ws != null) ws.selectWeaponInHub(input.hubSelectSlot);
         }
+        // Direct weapon slot selection (click/tap on HUD slot) — works without hub open
+        if (input.directWeaponSlot >= 0) {
+            WeaponSystem ws = turret.getWeaponSystem();
+            if (ws != null) ws.setActiveWeaponSlot(input.directWeaponSlot);
+        }
     }
 
     // ─── Equipment ───────────────────────────────────────────────────────────
@@ -88,6 +93,8 @@ public class PlayerController implements TankController {
         else if (input.useEquip2) result = turret.useEquipment(1, tank);
         else if (input.useEquip3) result = turret.useEquipment(2, tank);
         else if (input.useEquip4) result = turret.useEquipment(3, tank);
+        // Direct equip slot tap/click — activates regardless of key state
+        else if (input.directEquipSlot >= 0) result = turret.useEquipment(input.directEquipSlot, tank);
 
         // Push all equipment output entities to UpdateContext
         if (result != WeaponSystem.FireResult.EMPTY) {

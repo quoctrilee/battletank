@@ -5,9 +5,11 @@ package com.mygame.tank.controller.player;
  *
  * <p>New fields vs. previous version:
  * <ul>
- *   <li>{@link #toggleHub}    — Tab: open/close weapon selection hub</li>
- *   <li>{@link #useEquip1/2/3} — keys 1/2/3: activate tactical equipment slot</li>
- *   <li>{@link #hubSelectSlot} — while hub open, press 1/2/3 to select weapon slot</li>
+ *   <li>{@link #toggleHub}        — Tab: open/close weapon selection hub</li>
+ *   <li>{@link #useEquip1/2/3}    — keys 1/2/3: activate tactical equipment slot</li>
+ *   <li>{@link #hubSelectSlot}    — while hub open, press 1-7 to select weapon slot</li>
+ *   <li>{@link #directWeaponSlot} — click/tap weapon slot HUD to switch active weapon
+ *                                    directly, without opening the hub. -1 = none.</li>
  * </ul>
  */
 public final class PlayerInput {
@@ -43,9 +45,23 @@ public final class PlayerInput {
     /** Activate equipment slot 3 (key 4) — edge-triggered. */
     public final boolean useEquip4;
 
-    // ─── Aim ─────────────────────────────────────────────────────────────────
+    // ─── Aim ──────────────────────────────────────────────────────────────────
     public final float mouseWorldX;
     public final float mouseWorldY;
+
+    // ─── Direct Weapon Select ────────────────────────────────────────────────
+    /**
+     * Index of weapon slot clicked/tapped directly in the HUD (0-based).
+     * -1 means no direct selection this frame. Processed regardless of hub state.
+     */
+    public final int directWeaponSlot;
+
+    // ─── Direct Equipment Activate ───────────────────────────────────────────
+    /**
+     * Index of equipment slot clicked/tapped directly in the HUD (0-based).
+     * -1 means no activation this frame.
+     */
+    public final int directEquipSlot;
 
     // ─── Constructor ──────────────────────────────────────────────────────────
 
@@ -53,20 +69,23 @@ public final class PlayerInput {
                        boolean fire,
                        boolean toggleHub, int hubSelectSlot,
                        boolean useEquip1, boolean useEquip2, boolean useEquip3, boolean useEquip4,
-                       float mouseWorldX, float mouseWorldY) {
-        this.up           = up;
-        this.down         = down;
-        this.left         = left;
-        this.right        = right;
-        this.fire         = fire;
-        this.toggleHub    = toggleHub;
-        this.hubSelectSlot = hubSelectSlot;
-        this.useEquip1    = useEquip1;
-        this.useEquip2    = useEquip2;
-        this.useEquip3    = useEquip3;
-        this.useEquip4    = useEquip4;
-        this.mouseWorldX  = mouseWorldX;
-        this.mouseWorldY  = mouseWorldY;
+                       float mouseWorldX, float mouseWorldY,
+                       int directWeaponSlot, int directEquipSlot) {
+        this.up               = up;
+        this.down             = down;
+        this.left             = left;
+        this.right            = right;
+        this.fire             = fire;
+        this.toggleHub        = toggleHub;
+        this.hubSelectSlot    = hubSelectSlot;
+        this.useEquip1        = useEquip1;
+        this.useEquip2        = useEquip2;
+        this.useEquip3        = useEquip3;
+        this.useEquip4        = useEquip4;
+        this.mouseWorldX      = mouseWorldX;
+        this.mouseWorldY      = mouseWorldY;
+        this.directWeaponSlot = directWeaponSlot;
+        this.directEquipSlot  = directEquipSlot;
 
         this.hasMoveInput = up || down || left || right;
         this.moveAngleDeg = hasMoveInput ? computeAngle(up, down, left, right) : 0f;
@@ -81,5 +100,5 @@ public final class PlayerInput {
 
     public static final PlayerInput NONE =
         new PlayerInput(false, false, false, false, false,
-                        false, -1, false, false, false, false, 0f, 0f);
+                        false, -1, false, false, false, false, 0f, 0f, -1, -1);
 }

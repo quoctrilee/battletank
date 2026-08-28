@@ -196,6 +196,17 @@ public class WeaponSystem {
     }
 
     /**
+     * Directly sets the active weapon slot regardless of hub state.
+     * Used when the player clicks/taps a weapon slot in the HUD directly.
+     *
+     * @param slot 0-based slot index; silently ignored if out of bounds.
+     */
+    public void setActiveWeaponSlot(int slot) {
+        if (slot < 0 || slot >= WEAPON_SLOTS) return;
+        activeWeaponSlot = slot;
+    }
+
+    /**
      * Assigns a new weapon type to the currently selected hub slot.
      * Called from the hub UI when the player selects a different weapon card.
      */
