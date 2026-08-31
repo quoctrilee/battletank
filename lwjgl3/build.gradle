@@ -16,6 +16,7 @@ apply plugin: 'io.github.fourlastor.construo'
 import io.github.fourlastor.construo.Target
 
 sourceSets.main.resources.srcDirs += [ rootProject.file('assets').path ]
+processResources.duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 application.mainClass = 'com.mygame.tank.lwjgl3.Lwjgl3Launcher'
 application.applicationName = appName
 eclipse.project.name = appName + '-lwjgl3'
@@ -195,5 +196,11 @@ startScripts.classpath = project.tasks.jar.outputs.files
 // StartupHelper will still restart the JVM to set this environment variable when run as a distributable JAR, which is
 // a good thing for end users. They won't need to ever set the debug-specific environment variable.
 tasks.withType(JavaExec.class).configureEach {
+  // Set workingDir to assets/ for ALL JavaExec tasks — this includes:
+  //   • the Gradle `run` task (./gradlew :lwjgl3:run)
+  //   • IntelliJ's generated task when clicking Run on main()
+  // With workingDir=assets, Gdx.files.internal() reads files directly from disk,
+  // bypassing classpath/build-cache entirely. Asset changes are reflected immediately.
+  workingDir = rootProject.file('assets')
   environment("__GL_THREADED_OPTIMIZATIONS", 0)
 }

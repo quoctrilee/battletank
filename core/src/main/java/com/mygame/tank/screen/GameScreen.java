@@ -19,6 +19,7 @@ import com.mygame.tank.dungeon.DungeonMap;
 import com.mygame.tank.render.DebugRenderer;
 import com.mygame.tank.render.GameRenderer;
 import com.mygame.tank.world.GameWorld;
+import com.mygame.tank.audio.MusicManager;
 
 /**
  * Main game screen.
@@ -39,8 +40,10 @@ public class GameScreen implements Screen {
     private final AndroidUiSkin       androidUiSkin; // null on Desktop
     private final GameRenderer        gameRenderer;
     private final DebugRenderer       debugRenderer;
+    private final MusicManager        musicManager;
     private DungeonMap dungeonMap;
     private GameWorld  world;
+    private boolean hasPlayedEndSound = false;
 
     public GameScreen() {
         camera = new OrthographicCamera();
@@ -48,6 +51,7 @@ public class GameScreen implements Screen {
 
         gameRenderer  = new GameRenderer();
         debugRenderer = new DebugRenderer(GameConfig.DEBUG_DEFAULT);
+        musicManager  = new MusicManager();
 
         // ── UI Stage (needed for Android on-screen controls; harmless on Desktop) ──
         uiStage = new Stage(new ScreenViewport());
@@ -94,6 +98,19 @@ public class GameScreen implements Screen {
         world.update(delta, input);
         syncInputSourceState();
 
+        if (world.getGameState() == GameWorld.GameState.PLAYING) {
+            musicManager.playTrack(world.getCurrentMusicTrack());
+        } else if (!hasPlayedEndSound) {
+            hasPlayedEndSound = true;
+            if (world.getGameState() == GameWorld.GameState.WIN) {
+                musicManager.playVictorySound();
+            } else if (world.getGameState() == GameWorld.GameState.LOSE) {
+                musicManager.playLoseSound();
+            }
+        }
+        
+        musicManager.update(delta);
+
         updateCamera(delta);
 
         gameRenderer.render(camera, world);
@@ -122,6 +139,7 @@ public class GameScreen implements Screen {
         if (dungeonMap != null) dungeonMap.dispose();
         gameRenderer.dispose();
         debugRenderer.dispose();
+        musicManager.dispose();
         uiStage.dispose();
         if (androidUiSkin != null) androidUiSkin.dispose();
     }
@@ -154,6 +172,8 @@ public class GameScreen implements Screen {
 
     private void restartGame() {
         if (dungeonMap != null) dungeonMap.dispose();
+        hasPlayedEndSound = false;
+        musicManager.stopAll();
         createWorld();
     }
 
@@ -162,7 +182,7 @@ public class GameScreen implements Screen {
         dungeonMap = new DungeonMap();
         dungeonMap.generate(System.currentTimeMillis());
 
-        world = new GameWorld(dungeonMap);
+        world = new GameWorld(dungeonMap, musicManager.getSfxManager());
         syncInputSourceState();
 
         // Snap camera ngay đến player khi bắt đầu

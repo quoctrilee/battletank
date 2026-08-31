@@ -1,6 +1,7 @@
 package com.mygame.tank.weapon;
 
 import com.badlogic.gdx.math.MathUtils;
+import com.mygame.tank.audio.SfxManager;
 import com.mygame.tank.config.GameConfig;
 import com.mygame.tank.entity.LaserBeam;
 import com.mygame.tank.entity.Projectile;
@@ -93,6 +94,14 @@ public class WeaponSystem {
      * True while laser telegraph or beam is active (fired but cooldown not yet set).
      */
     private boolean laserFiring;
+
+    // ─── SFX ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Optional SFX manager — if non-null, plays a weapon-specific sound on each shot.
+     * Injected after construction via {@link #setSfxManager(SfxManager)}.
+     */
+    private SfxManager sfxManager;
 
     // ─── Equipment Loadout ────────────────────────────────────────────────────
 
@@ -214,6 +223,18 @@ public class WeaponSystem {
         setWeaponSlot(activeWeaponSlot, type);
     }
 
+    // ─── SFX ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Injects the SFX manager used to play weapon sounds on fire.
+     * Must be called before the first {@link #tryFire} invocation.
+     *
+     * @param sfxManager the SFX manager; {@code null} disables weapon SFX.
+     */
+    public void setSfxManager(SfxManager sfxManager) {
+        this.sfxManager = sfxManager;
+    }
+
     // ─── Fire (Damage Weapons) ────────────────────────────────────────────────
 
     /**
@@ -253,6 +274,7 @@ public class WeaponSystem {
 
     private FireResult fireDefault(float ox, float oy, float dx, float dy) {
         weaponCooldown[activeWeaponSlot] = GameConfig.DEFAULT_FIRE_RATE;
+        if (sfxManager != null) sfxManager.playWeaponSfx(WeaponType.DEFAULT_BULLET);
         List<Projectile> shots = new ArrayList<>(1);
         shots.add(Projectile.normal(ox, oy, dx, dy,
             GameConfig.DEFAULT_SPEED, GameConfig.DEFAULT_DAMAGE,
@@ -267,6 +289,7 @@ public class WeaponSystem {
 
     private FireResult fireSMG(float ox, float oy, float dx, float dy, boolean fireHeld) {
         weaponCooldown[activeWeaponSlot] = GameConfig.SMG_FIRE_RATE;
+        if (sfxManager != null) sfxManager.playWeaponSfx(WeaponType.SUBMACHINE_GUN);
 
         // Increase bloom/spread if fire button is held
         if (fireHeld) {
@@ -293,6 +316,7 @@ public class WeaponSystem {
 
     private FireResult fireArmorPierce(float ox, float oy, float dx, float dy) {
         weaponCooldown[activeWeaponSlot] = GameConfig.AP_FIRE_RATE;
+        if (sfxManager != null) sfxManager.playWeaponSfx(WeaponType.ARMOR_PIERCE);
         List<Projectile> shots = new ArrayList<>(1);
         shots.add(Projectile.piercing(ox, oy, dx, dy,
             GameConfig.AP_SPEED, GameConfig.AP_DAMAGE,
@@ -307,6 +331,7 @@ public class WeaponSystem {
 
     private FireResult fireCannon(float ox, float oy, float dx, float dy) {
         consumeAmmoAndSetCooldown(GameConfig.CANNON_COOLDOWN);
+        if (sfxManager != null) sfxManager.playWeaponSfx(WeaponType.CANNON);
         List<Projectile> shots = new ArrayList<>(1);
         shots.add(Projectile.aoe(ox, oy, dx, dy,
             GameConfig.CANNON_SPEED, GameConfig.CANNON_DIRECT_DAMAGE,
@@ -321,6 +346,7 @@ public class WeaponSystem {
 
     private FireResult fireStunShell(float ox, float oy, float dx, float dy) {
         consumeAmmoAndSetCooldown(GameConfig.STUN_COOLDOWN);
+        if (sfxManager != null) sfxManager.playWeaponSfx(WeaponType.STUN_SHELL);
         List<Projectile> shots = new ArrayList<>(1);
         shots.add(Projectile.stunAoe(ox, oy, dx, dy,
             GameConfig.STUN_SPEED, GameConfig.STUN_DAMAGE,
@@ -335,6 +361,7 @@ public class WeaponSystem {
 
     private FireResult fireLaser(float ox, float oy, float dx, float dy) {
         consumeAmmoAndSetCooldown(GameConfig.LASER_COOLDOWN);
+        if (sfxManager != null) sfxManager.playWeaponSfx(WeaponType.LASER);
         List<LaserBeam> beams = new ArrayList<>(1);
         beams.add(new LaserBeam(ox, oy, dx, dy,
             GameConfig.LASER_RANGE, GameConfig.LASER_DAMAGE,
@@ -344,6 +371,7 @@ public class WeaponSystem {
 
     private FireResult fireHoming(float ox, float oy, float dx, float dy) {
         consumeAmmoAndSetCooldown(GameConfig.HOMING_COOLDOWN);
+        if (sfxManager != null) sfxManager.playWeaponSfx(WeaponType.HOMING_MISSILE);
         List<Projectile> shots = new ArrayList<>(1);
         // Target assigned later by GameWorld upon detecting nearby enemies
         shots.add(Projectile.homing(ox, oy, dx, dy,

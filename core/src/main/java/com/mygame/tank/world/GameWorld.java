@@ -3,10 +3,12 @@ package com.mygame.tank.world;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
+import com.mygame.tank.audio.SfxManager;
 import com.mygame.tank.config.GameConfig;
 import com.mygame.tank.controller.UpdateContext;
 import com.mygame.tank.controller.ai.BossController;
 import com.mygame.tank.controller.player.PlayerInput;
+import com.mygame.tank.audio.MusicManager.MusicTrack;
 import com.mygame.tank.dungeon.DungeonMap;
 import com.mygame.tank.dungeon.Room;
 import com.mygame.tank.dungeon.RoomProgressionManager;
@@ -18,6 +20,7 @@ import com.mygame.tank.entity.TankFactory;
 import com.mygame.tank.entity.VisualEffect;
 import com.mygame.tank.entity.WorldEffect;
 import com.mygame.tank.entity.component.turret.PlayerTurretComponent;
+import com.mygame.tank.weapon.WeaponSystem;
 
 import java.util.*;
 
@@ -71,6 +74,16 @@ public class GameWorld {
     // ─── Constructor ─────────────────────────────────────────────────────────
 
     public GameWorld(DungeonMap dungeonMap) {
+        this(dungeonMap, null);
+    }
+
+    /**
+     * Creates the game world and optionally wires weapon SFX to the player.
+     *
+     * @param dungeonMap the pre-generated dungeon layout
+     * @param sfxManager weapon SFX manager; {@code null} disables weapon sounds
+     */
+    public GameWorld(DungeonMap dungeonMap, SfxManager sfxManager) {
         this.dungeonMap = dungeonMap;
         this.roomManager = new RoomProgressionManager();
         this.collision = new CollisionSystem();
@@ -91,6 +104,13 @@ public class GameWorld {
         // Spawn player tại phòng đầu tiên
         Vector2 spawnPos = dungeonMap.getPlayerSpawn();
         this.player = TankFactory.createPlayer(spawnPos.x, spawnPos.y);
+
+        // Inject SFX vào WeaponSystem của player (nếu có)
+        if (sfxManager != null) {
+            PlayerTurretComponent turret = (PlayerTurretComponent) player.getTurret();
+            WeaponSystem ws = turret.getWeaponSystem();
+            if (ws != null) ws.setSfxManager(sfxManager);
+        }
 
         // Spawn quái + boss theo dungeon layout
         spawnAllEntities();
@@ -753,11 +773,48 @@ public class GameWorld {
         return ((PlayerTurretComponent) player.getTurret()).isHubOpen();
     }
 
-    /**
-     * Trả về doorKey của phòng boss mà boss này thuộc về.
-     * Dùng bởi GameRenderer để lọc boss HP bar chỉ hiện đúng phòng.
-     */
     public String getBossRoomKeyFor(Tank boss) {
         return bossRoomKeys.getOrDefault(boss, "");
+    }
+
+    public Room getRoomAtPosition(Vector2 pos) {
+        for (Room room : dungeonMap.getRooms()) {
+            if (room.bounds.contains(pos)) {
+                return room;
+            }
+        }
+        return null;
+    }
+
+    public MusicTrack getCurrentMusicTrack() {
+        if (gameState != GameState.PLAYING) {
+            return MusicTrack.NONE;
+        }
+
+        Room currentRoom = getRoomAtPosition(player.getPosition());
+        if (currentRoom == null) {
+            return MusicTrack.BACKGROUND;
+        }
+
+        String roomKey = DungeonMap.roomKey(currentRoom);
+
+        if (currentRoom.type == Room.Type.BOSS && !roomManager.isRoomCleared(roomKey)) {
+            // Find the boss for this room
+            String doorKey = DungeonMap.doorKey(currentRoom);
+            for (Tank boss : bosses) {
+                if (boss.isAlive() && doorKey.equals(bossRoomKeys.get(boss))) {
+                    if (boss.getController() instanceof BossController) {
+                        BossController.Phase phase = ((BossController) boss.getController()).getPhase();
+                        if (phase == BossController.Phase.PHASE_1) {
+                            return MusicTrack.BOSS_PHASE1;
+                        } else {
+                            return MusicTrack.BOSS_PHASE2; // Phase 2 and 3 use boss_music_2
+                        }
+                    }
+                }
+            }
+        }
+
+        return MusicTrack.BACKGROUND;
     }
 }
