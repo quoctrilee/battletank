@@ -5,8 +5,17 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Quản lý tất cả sprite texture dùng bởi {@link GameRenderer}.
+ *
+ * <h3>Dynamic texture registry</h3>
+ * All textures are also registered in {@link #textureRegistry} under a string key.
+ * {@link GameRenderer} looks up textures via {@link #getTexture(String)} using the
+ * key stored in {@link com.mygame.tank.entity.component.VisualComponent}, so adding
+ * a new boss only requires placing PNG files in assets and referencing the key in JSON.
  *
  * <h3>Floor tiles:</h3>
  * <p>background.jpg 1024×1024 gồm 4 ô 512×512:
@@ -38,11 +47,23 @@ public class SpriteAssets {
     public final TextureRegion defaultMuzzleFlash;
     public final TextureRegion defaultWeaponIcon;
 
-    // ─── Boss sheet ──────────────────────────────────────────────────────────
+    // ─── Boss sheet — Iron Guard (boss.png, 768×256, 3×256 columns) ───────────
     public final Texture bossSheet;
     public final TextureRegion bossBody;
     public final TextureRegion bossTurret;
     public final TextureRegion bossProjectile;
+
+    // ─── Viper boss sheet (boss_viper.png, 677×369, 3 equal columns) ─────────
+    public final Texture viperSheet;
+    public final TextureRegion viperBody;
+    public final TextureRegion viperTurret;
+    public final TextureRegion viperProjectile;
+
+    // ─── Siege boss sheet (boss_siege.png, 869×287, 3 equal columns) ─────────
+    public final Texture siegeSheet;
+    public final TextureRegion siegeBody;
+    public final TextureRegion siegeTurret;
+    public final TextureRegion siegeProjectile;
 
     // ─── Floor tiles: 4 sub-regions cắt từ background.jpg (1024×1024) ────────
     /**
@@ -76,6 +97,15 @@ public class SpriteAssets {
     public final java.util.Map<com.mygame.tank.weapon.WeaponType, Texture> weaponIcons;
     public final java.util.Map<com.mygame.tank.weapon.EquipmentType, Texture> equipmentIcons;
 
+    // ─── Dynamic texture registry ──────────────────────────────────────────────
+    /**
+     * All named textures indexed by string key.
+     * VisualComponent stores keys; GameRenderer resolves them here at render time.
+     * Falls back to a 1×1 magenta "missing" texture when a key is not found.
+     */
+    private final Map<String, TextureRegion> textureRegistry = new HashMap<>();
+    private TextureRegion missingTexture;
+
     // ─── Constructor ─────────────────────────────────────────────────────────
 
     public SpriteAssets() {
@@ -93,12 +123,61 @@ public class SpriteAssets {
         defaultMuzzleFlash = new TextureRegion(defaultWeaponSheet, PAD, CELL + PAD, SIZE, SIZE);
         defaultWeaponIcon = new TextureRegion(defaultWeaponSheet, CELL + PAD, CELL + PAD, SIZE, SIZE);
 
-        // Boss sheet
+        // Boss sheet — Iron Guard (boss.png, 768×256)
         bossSheet = new Texture(Gdx.files.internal("boss/boss.png"));
         bossSheet.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-        bossBody = new TextureRegion(bossSheet, 0, 0, 256, 256);
-        bossTurret = new TextureRegion(bossSheet, 256, 0, 256, 256);
+        bossBody       = new TextureRegion(bossSheet, 0,   0, 256, 256);
+        bossTurret     = new TextureRegion(bossSheet, 256, 0, 256, 256);
         bossProjectile = new TextureRegion(bossSheet, 512, 0, 256, 256);
+
+        // Viper boss sheet (boss_viper_677x369.png, 677×369 — 3 equal columns ~225px wide)
+        viperSheet = new Texture(Gdx.files.internal("boss/boss_viper_677x369.png"));
+        viperSheet.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        {
+            int vW = viperSheet.getWidth();   // 677
+            int vH = viperSheet.getHeight();  // 369
+            int vCol = vW / 3;               // 225 (integer division; last col gets remainder)
+            viperBody       = new TextureRegion(viperSheet,       0, 0, vCol, vH);
+            viperTurret     = new TextureRegion(viperSheet,   vCol, 0, vCol, vH);
+            viperProjectile = new TextureRegion(viperSheet, 2*vCol, 0, vW - 2*vCol, vH);
+        }
+
+        // Siege boss sheet (boss_siege_869x287.png, 869×287 — 3 equal columns ~289px wide)
+        siegeSheet = new Texture(Gdx.files.internal("boss/boss_siege_869x287.png"));
+        siegeSheet.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        {
+            int sW = siegeSheet.getWidth();   // 869
+            int sH = siegeSheet.getHeight();  // 287
+            int sCol = sW / 3;               // 289
+            siegeBody       = new TextureRegion(siegeSheet,       0, 0, sCol, sH);
+            siegeTurret     = new TextureRegion(siegeSheet,   sCol, 0, sCol, sH);
+            siegeProjectile = new TextureRegion(siegeSheet, 2*sCol, 0, sW - 2*sCol, sH);
+        }
+
+        // Build missing-texture (1×1 magenta)
+        Pixmap mp = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+        mp.setColor(1f, 0f, 1f, 1f); mp.fill();
+        missingTexture = new TextureRegion(new Texture(mp));
+        mp.dispose();
+
+        // Register all known textures under their VisualComponent keys
+        register("player_body",       bodyRegion);
+        register("player_turret",     defaultTurret);
+        register("player_bullet",     defaultBullet);
+        register("enemy_body",        bodyRegion);   // enemies share the body sprite for now
+        register("enemy_turret",      defaultTurret);
+        register("enemy_bullet",      defaultBullet);
+        register("boss_iron_body",    bossBody);
+        register("boss_iron_turret",  bossTurret);
+        register("boss_iron_bullet",  bossProjectile);
+        // Viper — dedicated art from boss_viper.png
+        register("boss_viper_body",   viperBody);
+        register("boss_viper_turret", viperTurret);
+        register("boss_viper_bullet", viperProjectile);
+        // Siege — dedicated art from boss_siege.png
+        register("boss_siege_body",   siegeBody);
+        register("boss_siege_turret", siegeTurret);
+        register("boss_siege_bullet", siegeProjectile);
 
         // ── Floor tiles từ background.jpg (1024×1024 = 4 ô 512×512) ─────────
         backgroundSheet = new Texture(Gdx.files.internal("maps/background.jpg"));
@@ -149,6 +228,23 @@ public class SpriteAssets {
         for (Texture t : equipmentIcons.values()) {
             t.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
         }
+    }
+
+    // ─── Dynamic registry helpers ─────────────────────────────────────────────
+
+    /** Registers (or replaces) a TextureRegion under the given key. */
+    public void register(String key, TextureRegion region) {
+        textureRegistry.put(key, region);
+    }
+
+    /**
+     * Returns the TextureRegion registered under {@code key}.
+     * If the key is not found, returns a 1×1 magenta placeholder so rendering
+     * never crashes — the magenta colour makes missing assets immediately visible.
+     */
+    public TextureRegion getTexture(String key) {
+        TextureRegion r = textureRegistry.get(key);
+        return (r != null) ? r : missingTexture;
     }
 
     // ─── Fog mask builder ────────────────────────────────────────────────────
@@ -217,6 +313,8 @@ public class SpriteAssets {
         bodyTexture.dispose();
         defaultWeaponSheet.dispose();
         bossSheet.dispose();
+        viperSheet.dispose();
+        siegeSheet.dispose();
         backgroundSheet.dispose();
         wallTexture.dispose();
         coverTexture.dispose();

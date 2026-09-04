@@ -34,7 +34,10 @@ public class PlayerController implements TankController {
     @Override
     public List<Projectile> update(Tank tank, float delta, UpdateContext ctx) {
         if (!tank.getHealth().isAlive()) return Collections.emptyList();
-        if (tank.isStunned()) return Collections.emptyList();
+        if (tank.isStunned()) {
+            tank.getMovement().stop();
+            return Collections.emptyList();
+        }
 
         PlayerInput input = ctx.playerInput;
         PlayerTurretComponent turret = (PlayerTurretComponent) tank.getTurret();

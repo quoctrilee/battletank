@@ -7,6 +7,7 @@ import com.mygame.tank.controller.UpdateContext;
 import com.mygame.tank.entity.component.HealthComponent;
 import com.mygame.tank.entity.component.MovementComponent;
 import com.mygame.tank.entity.component.TankStats;
+import com.mygame.tank.entity.component.VisualComponent;
 import com.mygame.tank.entity.component.turret.Turret;
 
 import java.util.List;
@@ -30,20 +31,23 @@ public class Tank {
     private final Turret turret;
     private final TankController controller;
     private final TankStats stats;
-    private final String areaId;   // null for player; areaId for enemies/boss
+    private final String areaId;       // null for player; areaId for enemies/boss
+    private final VisualComponent visual; // rendering metadata; not null for all tank types
 
     public Tank(HealthComponent health,
                 MovementComponent movement,
                 Turret turret,
                 TankController controller,
                 TankStats stats,
-                String areaId) {
+                String areaId,
+                VisualComponent visual) {
         this.health = health;
         this.movement = movement;
         this.turret = turret;
         this.controller = controller;
         this.stats = stats;
         this.areaId = areaId;
+        this.visual = visual;
     }
 
     /**
@@ -147,5 +151,9 @@ public class Tank {
 
     public String getAreaId() {
         return areaId;
+    }
+
+    public VisualComponent getVisual() {
+        return visual;
     }
 }

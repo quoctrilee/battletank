@@ -4,6 +4,8 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.mygame.tank.audio.SfxManager;
+import com.mygame.tank.config.BossConfig;
+import com.mygame.tank.config.BossConfigLoader;
 import com.mygame.tank.config.GameConfig;
 import com.mygame.tank.controller.UpdateContext;
 import com.mygame.tank.controller.ai.BossController;
@@ -54,6 +56,10 @@ public class GameWorld {
      */
     private final Map<Tank, Float> pathTimers = new IdentityHashMap<>();
 
+    // ─── Boss config ──────────────────────────────────────────────────────────
+    /** Loaded at construction time; provides config for each boss room by index. */
+    private final BossConfigLoader bossConfigLoader;
+
     // ─── Enemy-to-room mapping ────────────────────────────────────────────────
     /**
      * roomKey của mỗi enemy — để biết enemy thuộc phòng nào.
@@ -96,7 +102,11 @@ public class GameWorld {
         this.gameState = GameState.PLAYING;
 
         // Khởi tạo pathfinder
-        pathfinder = new AStarPathfinder(dungeonMap.getTileMap());
+        this.pathfinder = new AStarPathfinder(dungeonMap.getTileMap());
+
+        // Load boss configs from assets/boss/*.json
+        this.bossConfigLoader = new BossConfigLoader();
+        this.bossConfigLoader.loadAll();
 
         // Khởi tạo progression manager với danh sách phòng
         roomManager.init(dungeonMap.getRooms());
@@ -136,22 +146,26 @@ public class GameWorld {
         }
 
         // ── Boss ─────────────────────────────────────────────────────────────
-        // Duyệt trực tiếp từng phòng BOSS (KHÔNG zip theo index với
-        // dungeonMap.getBossSpawns() như trước) — mỗi Room BOSS tự mang theo
-        // bossSpawnPoint của chính nó, nên không thể lệch thứ tự hay lệch độ
-        // dài giữa 2 danh sách. Trước đây nếu 2 list lệch độ dài vì bất kỳ lý
-        // do gì (ví dụ 1 phòng BOSS thiếu bossSpawnPoint), boss cuối cùng
-        // trong chuỗi sẽ không được spawn/registerBoss — khiến
-        // RoomProgressionManager coi phòng đó là "trống" và tự động clear nó,
-        // làm game kết thúc sớm ngay sau khi hạ xong boss áp chót.
+        int bossIndex = 0;
         for (Room bossRoom : dungeonMap.getRooms()) {
             if (bossRoom.type != Room.Type.BOSS) continue;
 
             Vector2 pos = bossRoom.bossSpawnPoint != null
                 ? bossRoom.bossSpawnPoint
-                : bossRoom.getCenter(); // fallback an toàn, không bao giờ bỏ sót spawn
+                : bossRoom.getCenter();
 
-            Tank boss = TankFactory.createBoss(pos.x, pos.y);
+            // Pick boss config by index (cycles through available configs)
+            BossConfig config = bossConfigLoader.getByIndex(bossIndex++);
+            Tank boss;
+            if (config != null) {
+                boss = TankFactory.createBoss(pos.x, pos.y, config);
+            } else {
+                // Fallback: no JSON configs found — log a warning
+                com.badlogic.gdx.Gdx.app.error("GameWorld",
+                    "No BossConfig found, skipping boss at " + pos);
+                continue;
+            }
+
             String doorKey = DungeonMap.doorKey(bossRoom);
             String roomKey = DungeonMap.roomKey(bossRoom);
             bosses.add(boss);
@@ -159,7 +173,7 @@ public class GameWorld {
             bossRoomBounds.put(boss, bossRoom.bounds);
             pathTimers.put(boss, 0f);
             roomManager.registerBoss(doorKey, boss);
-            roomManager.registerEnemies(roomKey, Collections.emptyList()); // boss room không có quái thường
+            roomManager.registerEnemies(roomKey, Collections.emptyList());
         }
     }
 
@@ -514,7 +528,15 @@ public class GameWorld {
                 }
             }
         }
+        if (proj.getType() == Projectile.ProjectileType.AOE
+            || proj.getType() == Projectile.ProjectileType.STUN_AOE) {
+            proj.triggerExplosion();
+            return true;
+        }
         player.takeDamage(proj.getDamage());
+        if (proj.getStunDuration() > 0f) {
+            player.applyStun(proj.getStunDuration());
+        }
         proj.destroy();
         visualEffects.add(VisualEffect.smallHit(player.getPosition().x, player.getPosition().y, Color.RED));
         return true;
@@ -525,8 +547,8 @@ public class GameWorld {
     private void applyAoeExplosion(Projectile proj) {
         float cx = proj.getPosition().x, cy = proj.getPosition().y;
         float radius = proj.getAoeRadius();
-        float baseDmg = (proj.getType() == Projectile.ProjectileType.AOE)
-            ? GameConfig.CANNON_AOE_DAMAGE : GameConfig.STUN_DAMAGE;
+        float baseDmg = proj.getDamage() > 0 ? proj.getDamage() : ((proj.getType() == Projectile.ProjectileType.AOE)
+            ? GameConfig.CANNON_AOE_DAMAGE : GameConfig.STUN_DAMAGE);
         Color vfxColor = (proj.getType() == Projectile.ProjectileType.AOE)
             ? Color.ORANGE : Color.PURPLE;
         visualEffects.add(VisualEffect.aoeExplosion(cx, cy, radius, vfxColor));
@@ -548,8 +570,12 @@ public class GameWorld {
                 }
             }
         } else {
-            if (player.isAlive() && player.getPosition().dst(cx, cy) <= radius)
+            if (player.isAlive() && player.getPosition().dst(cx, cy) <= radius) {
                 player.takeDamage(baseDmg);
+                if (proj.getType() == Projectile.ProjectileType.STUN_AOE) {
+                    player.applyStun(proj.getStunDuration());
+                }
+            }
         }
     }
 
@@ -803,12 +829,12 @@ public class GameWorld {
             String doorKey = DungeonMap.doorKey(currentRoom);
             for (Tank boss : bosses) {
                 if (boss.isAlive() && doorKey.equals(bossRoomKeys.get(boss))) {
-                    if (boss.getController() instanceof BossController) {
-                        BossController.Phase phase = ((BossController) boss.getController()).getPhase();
-                        if (phase == BossController.Phase.PHASE_1) {
+                if (boss.getController() instanceof BossController bossCtrl) {
+                        int phaseIndex = bossCtrl.getPhaseIndex();
+                        if (phaseIndex == 0) {
                             return MusicTrack.BOSS_PHASE1;
                         } else {
-                            return MusicTrack.BOSS_PHASE2; // Phase 2 and 3 use boss_music_2
+                            return MusicTrack.BOSS_PHASE2; // Phase 1+ uses boss_music_2
                         }
                     }
                 }

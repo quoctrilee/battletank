@@ -95,6 +95,13 @@ public final class MovementComponent {
         bounds.setCenter(newX, newY);
     }
 
+    /**
+     * Instantly halts forward momentum (used on stun or immediate stop).
+     */
+    public void stop() {
+        this.currentSpeed = 0f;
+    }
+
     // ─── Getters ─────────────────────────────────────────────────────────────
     public Vector2 getPosition() {
         return position;

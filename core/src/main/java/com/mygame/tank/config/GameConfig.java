@@ -109,7 +109,7 @@ public final class GameConfig {
     public static final float PLAYER_MAX_SPEED = 160f;   // px/s
     public static final float PLAYER_ACCELERATION = 450f;   // px/s^2
     public static final float PLAYER_DECELERATION = 500f;   // px/s^2
-    public static final float PLAYER_MAX_HP = 200f;
+    public static final float PLAYER_MAX_HP = 500f;
     public static final float PLAYER_WIDTH = 40f;
     public static final float PLAYER_HEIGHT = 40f;
 

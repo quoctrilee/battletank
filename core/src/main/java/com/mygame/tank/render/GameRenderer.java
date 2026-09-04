@@ -366,14 +366,15 @@ public class GameRenderer {
     // ─── Sprite-based player rendering ───────────────────────────────────────
 
     /**
-     * Renders the player tank body and turret using PNG sprites.
-     * Both sprites face UP in their source image; we rotate by (angle - 90°)
-     * to convert from the game's math-angle convention (90° = up) to LibGDX
-     * SpriteBatch rotation (0° = no-rotation = facing up).
+     * Renders the player tank body and turret using VisualComponent texture keys.
+     * The sprite convention is: faces UP in the source image; we rotate by (angle - 90°).
      */
     private void renderPlayerSprites(GameWorld world) {
         Tank player = world.getPlayer();
         if (!player.isAlive()) return;
+
+        com.mygame.tank.entity.component.VisualComponent visual = player.getVisual();
+        if (visual == null) return;
 
         float alpha = player.isStunned()
             ? ((System.currentTimeMillis() % 300 < 150) ? 0.3f : 0.8f)
@@ -383,28 +384,28 @@ public class GameRenderer {
         float py = player.getPosition().y;
 
         // ── Body ──────────────────────────────────────────────────────────────
-        float bodyW = GameConfig.PLAYER_WIDTH * 1.6f;  // slightly wider than hitbox for visual fidelity
-        float bodyH = GameConfig.PLAYER_HEIGHT * 2.0f;  // body sprite is taller than hitbox
-        float bodyRot = player.getBodyAngle() - 90f;    // sprite faces up → subtract 90° offset
-        worldBatch.setColor(1f, 1f, 1f, alpha);
-        worldBatch.draw(assets.bodyRegion,
-            px - bodyW / 2f, py - bodyH / 2f,  // bottom-left origin
-            bodyW / 2f, bodyH / 2f,             // rotation origin (center)
-            bodyW, bodyH,                       // size
-            1f, 1f,                             // scale
-            bodyRot);
+        float bodyW   = GameConfig.PLAYER_WIDTH  * visual.getBodyScale();
+        float bodyH   = GameConfig.PLAYER_HEIGHT * visual.getBodyScale();
+        float bodyRot = player.getBodyAngle() - 90f;
+        com.badlogic.gdx.graphics.Color tint = visual.getCurrentTint();
+        worldBatch.setColor(tint.r, tint.g, tint.b, alpha);
+        worldBatch.draw(assets.getTexture(visual.getBodyTextureId()),
+            px - bodyW / 2f, py - bodyH / 2f,
+            bodyW / 2f, bodyH / 2f,
+            bodyW, bodyH,
+            1f, 1f, bodyRot);
 
         // ── Turret ────────────────────────────────────────────────────────────
-        float turretSize = GameConfig.PLAYER_WIDTH * 1.4f;
-        float turretRot = player.getTurretAngle() - 90f;
-        worldBatch.draw(assets.defaultTurret,
+        float turretSize = GameConfig.PLAYER_WIDTH * visual.getTurretScale();
+        float turretRot  = player.getTurretAngle() - 90f;
+        worldBatch.setColor(tint.r, tint.g, tint.b, alpha);
+        worldBatch.draw(assets.getTexture(visual.getTurretTextureId()),
             px - turretSize / 2f, py - turretSize / 2f,
             turretSize / 2f, turretSize / 2f,
             turretSize, turretSize,
-            1f, 1f,
-            turretRot);
+            1f, 1f, turretRot);
 
-        worldBatch.setColor(Color.WHITE);
+        worldBatch.setColor(com.badlogic.gdx.graphics.Color.WHITE);
     }
 
     /**
@@ -508,42 +509,42 @@ public class GameRenderer {
     }
 
 
+    /**
+     * Renders all boss tanks using their {@link com.mygame.tank.entity.component.VisualComponent}.
+     * Tint and scale are driven by the phase strategy — no hardcoded colours here.
+     */
     private void renderBossSprites(GameWorld world) {
         for (Tank boss : world.getBosses()) {
             if (!boss.isAlive()) continue;
 
-            BossController bossCtrl = (BossController) boss.getController();
-            boolean isPhase2 = bossCtrl.getPhase() == BossController.Phase.PHASE_2;
-            float blink = (System.currentTimeMillis() % 300 < 150 && isPhase2) ? 0.6f : 1f;
-            float alpha = boss.isStunned() ? 0.5f : blink;
+            com.mygame.tank.entity.component.VisualComponent visual = boss.getVisual();
+            if (visual == null) continue;
+
+            float alpha = boss.isStunned() ? 0.5f : 1f;
+            com.badlogic.gdx.graphics.Color tint = visual.getCurrentTint();
 
             float px = boss.getPosition().x;
             float py = boss.getPosition().y;
 
             // Body
-            float bodySize = GameConfig.BOSS_WIDTH * 1.6f;
-            float bodyRot = boss.getBodyAngle() - 90f;
-            worldBatch.setColor(1f, 1f, 1f, alpha);
-            if (isPhase2) {
-                worldBatch.setColor(1f, 0.5f, 0.5f, alpha); // Reddish tint for phase 2
-            }
-            worldBatch.draw(assets.bossBody,
+            float bodySize = boss.getStats().width * visual.getBodyScale();
+            float bodyRot  = boss.getBodyAngle() - 90f;
+            worldBatch.setColor(tint.r, tint.g, tint.b, alpha);
+            worldBatch.draw(assets.getTexture(visual.getBodyTextureId()),
                 px - bodySize / 2f, py - bodySize / 2f,
                 bodySize / 2f, bodySize / 2f,
                 bodySize, bodySize,
-                1f, 1f,
-                bodyRot);
+                1f, 1f, bodyRot);
 
             // Turret
-            float turretSize = GameConfig.BOSS_WIDTH * 1.6f;
-            float turretRot = boss.getTurretAngle() - 90f;
-            worldBatch.draw(assets.bossTurret,
-                px - turretSize / 2f,
-                py - turretSize / 2f,
+            float turretSize = boss.getStats().width * visual.getTurretScale();
+            float turretRot  = boss.getTurretAngle() - 90f;
+            worldBatch.setColor(tint.r, tint.g, tint.b, alpha);
+            worldBatch.draw(assets.getTexture(visual.getTurretTextureId()),
+                px - turretSize / 2f, py - turretSize / 2f,
                 turretSize / 2f, turretSize / 2f,
                 turretSize, turretSize,
-                1f, 1f,
-                turretRot);
+                1f, 1f, turretRot);
         }
 
         worldBatch.setColor(Color.WHITE);
@@ -562,13 +563,14 @@ public class GameRenderer {
                 * MathUtils.radiansToDegrees;
             float spriteRot = angleDeg - 90f;
 
+            // Use a default boss bullet key; per-boss bullets would require linking
+            // the projectile back to its firing boss visual (future enhancement).
             worldBatch.setColor(Color.WHITE);
-            worldBatch.draw(assets.bossProjectile,
+            worldBatch.draw(assets.getTexture("boss_iron_bullet"),
                 bx - bulletSize / 2f, by - bulletSize / 2f,
                 bulletSize / 2f, bulletSize / 2f,
                 bulletSize, bulletSize,
-                1f, 1f,
-                spriteRot);
+                1f, 1f, spriteRot);
         }
     }
 
@@ -1120,8 +1122,8 @@ public class GameRenderer {
             shapeRenderer.rect(bx, by, barW, barH);
 
             BossController ctrl = (BossController) boss.getController();
-            boolean phase2 = ctrl.getPhase() == BossController.Phase.PHASE_2;
-            shapeRenderer.setColor(phase2
+            boolean isEnraged = ctrl.getPhaseIndex() >= 1;
+            shapeRenderer.setColor(isEnraged
                 ? new Color(0.95f, 0.1f, 0.6f, 1f)
                 : new Color(0.85f, 0.4f, 0.05f, 1f));
             shapeRenderer.rect(bx + 1, by + 1, (barW - 2) * ratio, barH - 2);
@@ -1316,12 +1318,18 @@ public class GameRenderer {
             if (!world.getBossRoomKeyFor(boss).equals(expectedKey)) continue;
 
             BossController ctrl = (BossController) boss.getController();
-            boolean phase2 = ctrl.getPhase() == BossController.Phase.PHASE_2;
-            font.setColor(phase2 ? Color.RED : Color.ORANGE);
+            int phaseIndex = ctrl.getPhaseIndex();
+            boolean isEnraged = phaseIndex >= 1;
+            font.setColor(isEnraged ? Color.RED : Color.ORANGE);
             int by = sh - 40 - bossIdx * (barH + gap + 14);
+            // Extract a display name from areaId (e.g. "BOSS_iron_guard" → "iron guard")
+            String areaId = boss.getAreaId();
+            String bossName = areaId != null
+                ? areaId.replace("BOSS_", "").replace("_", " ").toUpperCase()
+                : "BOSS";
             font.draw(hudBatch,
-                String.format("IRON GUARD  %d/%d  P%d",
-                    (int) boss.getHp(), (int) boss.getMaxHp(), phase2 ? 2 : 1),
+                String.format("%s  %d/%d  P%d",
+                    bossName, (int) boss.getHp(), (int) boss.getMaxHp(), phaseIndex + 1),
                 sw / 2f - 90f, by + barH + 13);
             bossIdx++;
         }

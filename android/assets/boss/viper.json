@@ -1,0 +1,33 @@
+{
+  "id": "viper",
+  "maxHp": 450,
+  "width": 48,
+  "height": 48,
+  "fireRate": 0.1,
+  "bulletSpeed": 220,
+  "damage": 22,
+  "turretRotationSpeed": 240,
+  "bodyTextureId":   "boss_viper_body",
+  "turretTextureId": "boss_viper_turret",
+  "bulletTextureId": "boss_viper_bullet",
+  "bodyScale":   1.6,
+  "turretScale": 1.6,
+  "moveStrategyClass":  "ZigzagDashMoveStrategy",
+  "fireStrategyClass":  "HomingFireStrategy",
+  "phaseStrategyClass": "TwoPhaseRushStrategy",
+  "params": {
+    "dashSpeed":        140,
+    "dashSpeedP2":      215,
+    "zigzagInterval":   1.2,
+    "zigzagAngleDeg":   35,
+    "zigzagAngleDegP2": 20,
+    "fireInterval":     2.5,
+    "fireIntervalP2":   1.6,
+    "homingTurnRate":   115,
+    "burstCount":       3,
+    "burstAngleDeg":    15,
+    "bulletSpeed":      220,
+    "damage":           22,
+    "phase2Threshold":  0.45
+  }
+}

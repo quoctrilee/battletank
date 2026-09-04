@@ -1,14 +1,20 @@
 package com.mygame.tank.entity;
 
+import com.mygame.tank.config.BossConfig;
 import com.mygame.tank.config.GameConfig;
 import com.mygame.tank.controller.ai.BossController;
-import com.mygame.tank.controller.ai.EnemyController;
+import com.mygame.tank.controller.ai.StrategyFactory;
+import com.mygame.tank.controller.ai.strategy.BossFireStrategy;
+import com.mygame.tank.controller.ai.strategy.BossMoveStrategy;
+import com.mygame.tank.controller.ai.strategy.BossPhaseStrategy;
 import com.mygame.tank.controller.player.PlayerController;
-import com.mygame.tank.entity.component.turret.EnemyTurretComponent;
 import com.mygame.tank.entity.component.HealthComponent;
 import com.mygame.tank.entity.component.MovementComponent;
-import com.mygame.tank.entity.component.turret.PlayerTurretComponent;
 import com.mygame.tank.entity.component.TankStats;
+import com.mygame.tank.entity.component.VisualComponent;
+import com.mygame.tank.entity.component.turret.EnemyTurretComponent;
+import com.mygame.tank.entity.component.turret.PlayerTurretComponent;
+import com.mygame.tank.controller.ai.EnemyController;
 import com.mygame.tank.weapon.WeaponSystem;
 
 /**
@@ -16,11 +22,13 @@ import com.mygame.tank.weapon.WeaponSystem;
  * <p>
  * All component construction and config wiring lives here, keeping
  * Tank, components, and controllers free of cross-references.
+ * Every tank now receives a {@link VisualComponent} so
+ * {@link com.mygame.tank.render.GameRenderer} never needs to fall back to
+ * hardcoded colours or sizes.
  */
 public final class TankFactory {
 
-    private TankFactory() {
-    }
+    private TankFactory() {}
 
     // ── Player ───────────────────────────────────────────────────────────────
 
@@ -36,11 +44,18 @@ public final class TankFactory {
         MovementComponent movement = new MovementComponent(
             x, y, stats.width, stats.height,
             stats.maxSpeed, stats.acceleration, stats.deceleration);
-        // Player turret uses WeaponSystem; its combat stats live inside WeaponSystem
         PlayerTurretComponent turret = new PlayerTurretComponent(0.6f, new WeaponSystem());
         PlayerController ctrl = new PlayerController();
 
-        return new Tank(health, movement, turret, ctrl, stats, null);
+        VisualComponent visual = new VisualComponent(
+            "player_body",     // bodyTextureId  — key in SpriteAssets
+            "player_turret",   // turretTextureId
+            "player_bullet",   // bulletTextureId
+            1.6f,              // bodyScale
+            1.4f               // turretScale
+        );
+
+        return new Tank(health, movement, turret, ctrl, stats, null, visual);
     }
 
     // ── Regular enemy ────────────────────────────────────────────────────────
@@ -50,12 +65,11 @@ public final class TankFactory {
             GameConfig.ENEMY_WIDTH,
             GameConfig.ENEMY_HEIGHT,
             GameConfig.ENEMY_BASIC_SPEED,
-            0f, 0f);   // enemies use moveToward — no accel/decel curve
+            0f, 0f);
 
         HealthComponent health = new HealthComponent(GameConfig.ENEMY_BASIC_HP);
         MovementComponent movement = new MovementComponent(
             x, y, stats.width, stats.height, stats.maxSpeed, 0f, 0f);
-        // Enemy turret owns its own combat stats
         EnemyTurretComponent turret = new EnemyTurretComponent(
             GameConfig.ENEMY_BASIC_FIRE_RATE,
             GameConfig.ENEMY_BASIC_BULLET_SPEED,
@@ -63,28 +77,59 @@ public final class TankFactory {
             0.6f, Projectile.Owner.ENEMY);
         EnemyController ctrl = new EnemyController();
 
-        return new Tank(health, movement, turret, ctrl, stats, areaId);
+        VisualComponent visual = new VisualComponent(
+            "enemy_body",
+            "enemy_turret",
+            "enemy_bullet",
+            1.0f,   // bodyScale  — enemies are drawn at hitbox size (shape renderer scales separately)
+            1.0f    // turretScale
+        );
+
+        return new Tank(health, movement, turret, ctrl, stats, areaId, visual);
     }
 
     // ── Boss ─────────────────────────────────────────────────────────────────
 
-    public static Tank createBoss(float x, float y) {
+    /**
+     * Creates a boss tank from a {@link BossConfig}.
+     * All stats, strategies, and visual data are taken from the config — no
+     * hardcoded constants, allowing designer-driven boss variety via JSON.
+     *
+     * @param x      spawn X in world coordinates
+     * @param y      spawn Y in world coordinates
+     * @param config the loaded boss configuration
+     * @return a fully wired boss Tank ready to be added to GameWorld
+     */
+    public static Tank createBoss(float x, float y, BossConfig config) {
         TankStats stats = new TankStats(
-            GameConfig.BOSS_WIDTH,
-            GameConfig.BOSS_HEIGHT,
-            0f, 0f, 0f);  // boss uses setPosition (orbit) — speed irrelevant
+            config.width,
+            config.height,
+            0f, 0f, 0f);  // boss movement is controlled entirely by MoveStrategy
 
-        HealthComponent health = new HealthComponent(GameConfig.BOSS_HP);
+        HealthComponent health = new HealthComponent(config.maxHp);
         MovementComponent movement = new MovementComponent(
             x, y, stats.width, stats.height, 0f, 0f, 0f);
-        // Boss turret owns spread-shot stats
         EnemyTurretComponent turret = new EnemyTurretComponent(
-            GameConfig.BOSS_SPREAD_FIRE_RATE,
-            GameConfig.BOSS_BULLET_SPEED,
-            GameConfig.BOSS_BULLET_DAMAGE,
+            config.fireRate,
+            config.bulletSpeed,
+            config.damage,
             1.2f, Projectile.Owner.BOSS);
-        BossController ctrl = new BossController(x, y);
 
-        return new Tank(health, movement, turret, ctrl, stats, "BOSS");
+        // Build strategies from config
+        BossMoveStrategy  moveStrategy  = StrategyFactory.createMove(config);
+        BossFireStrategy  fireStrategy  = StrategyFactory.createFire(config);
+        BossPhaseStrategy phaseStrategy = StrategyFactory.createPhase(config);
+
+        BossController ctrl = new BossController(x, y, moveStrategy, fireStrategy, phaseStrategy);
+
+        VisualComponent visual = new VisualComponent(
+            config.bodyTextureId,
+            config.turretTextureId,
+            config.bulletTextureId,
+            config.bodyScale,
+            config.turretScale
+        );
+
+        return new Tank(health, movement, turret, ctrl, stats, "BOSS_" + config.id, visual);
     }
 }

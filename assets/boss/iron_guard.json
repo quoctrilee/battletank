@@ -1,0 +1,30 @@
+{
+  "id": "iron_guard",
+  "maxHp": 600,
+  "width": 56,
+  "height": 56,
+  "fireRate": 1.8,
+  "bulletSpeed": 260,
+  "damage": 18,
+  "turretRotationSpeed": 180,
+  "bodyTextureId":   "boss_iron_body",
+  "turretTextureId": "boss_iron_turret",
+  "bulletTextureId": "boss_iron_bullet",
+  "bodyScale":   1.6,
+  "turretScale": 1.6,
+  "moveStrategyClass":  "OrbitMoveStrategy",
+  "fireStrategyClass":  "SpreadFireStrategy",
+  "phaseStrategyClass": "ThresholdPhaseStrategy",
+  "params": {
+    "orbitRadius":         110,
+    "orbitSpeedDeg":       60,
+    "spreadAngleDeg":      30,
+    "spreadCount":         3,
+    "phase2Threshold":     0.5,
+    "phase3Threshold":     0.25,
+    "miniSpawnInterval":   12,
+    "miniTankCount":       2,
+    "miniSpawnIntervalP3": 7,
+    "miniTankCountP3":     3
+  }
+}
