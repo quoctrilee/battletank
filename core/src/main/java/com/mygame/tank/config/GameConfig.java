@@ -109,7 +109,7 @@ public final class GameConfig {
     public static final float PLAYER_MAX_SPEED = 160f;   // px/s
     public static final float PLAYER_ACCELERATION = 450f;   // px/s^2
     public static final float PLAYER_DECELERATION = 500f;   // px/s^2
-    public static final float PLAYER_MAX_HP = 500f;
+    public static final float PLAYER_MAX_HP = 600f;
     public static final float PLAYER_WIDTH = 40f;
     public static final float PLAYER_HEIGHT = 40f;
 
@@ -126,9 +126,9 @@ public final class GameConfig {
     // ─── Group A: Direct DPS (Unlimited Ammo) ────────────────────────────────
 
     // DEFAULT_BULLET — Basic single-shot cannon (Mid-range combat)
-    public static final float DEFAULT_DAMAGE = 20f;
-    public static final float DEFAULT_FIRE_RATE = 0.9f;  // Seconds between shots
-    public static final float DEFAULT_SPEED = 250f;   // px/s
+    public static final float DEFAULT_DAMAGE = 40f;
+    public static final float DEFAULT_FIRE_RATE = 1.1f;  // Seconds between shots
+    public static final float DEFAULT_SPEED = 300f;   // px/s
     public static final float DEFAULT_LIFETIME = 0.8f;   // Effective Range = 420 * 0.8 = 336px (~7 tiles)
     public static final int DEFAULT_MAX_AMMO = -1;     // -1 = unlimited
 
@@ -141,16 +141,16 @@ public final class GameConfig {
     public static final float SMG_SPREAD_BUILD_RATE = 5f;    // Spread increase per second
     public static final float SMG_SPREAD_DECAY_RATE = 10f;   // Spread decay per second on release
     public static final float SMG_LIFETIME = 0.6f;   // Effective Range = 380 * 0.6 = 228px (~4.7 tiles)
-    public static final int SMG_MAX_AMMO = -1;     // Unlimited
+    public static final int SMG_MAX_AMMO = 40;     // Unlimited
 
     // ARMOR_PIERCE — High speed, long-range sniper projectile piercing multiple targets
     public static final float AP_DAMAGE = 40f;    // Base damage per hit
     public static final float AP_DAMAGE_FALLOFF = 0.75f;  // Damage multiplier on subsequent pierces
     public static final int AP_MAX_PIERCE = 3;      // Max number of pierces
-    public static final float AP_FIRE_RATE = 0.75f;
+    public static final float AP_COOLDOWN = 0.75f;   // Cooldown between shots (now ammo-limited, cooldown-paced)
     public static final float AP_SPEED = 550f;   // Fast projectile speed
     public static final float AP_LIFETIME = 1.1f;   // Effective Range = 550 * 1.1 = 605px (~12.6 tiles)
-    public static final int AP_MAX_AMMO = -1;     // Unlimited
+    public static final int AP_MAX_AMMO = 10;      // Limited charges
 
     // ─── Group B: Area of Effect (AoE) ───────────────────────────────────────
 
@@ -171,7 +171,7 @@ public final class GameConfig {
     public static final float STUN_COOLDOWN = 5.0f;
     public static final float STUN_SPEED = 300f;
     public static final float STUN_LIFETIME = 1.2f;   // Effective Range = 300 * 1.2 = 360px (~7.5 tiles)
-    public static final int STUN_MAX_AMMO = 5;      // Limited charges
+    public static final int STUN_MAX_AMMO = 8;      // Limited charges
 
     // ─── Group C: Special / Control ──────────────────────────────────────────
 
@@ -181,7 +181,7 @@ public final class GameConfig {
     public static final float LASER_DAMAGE = 95f;    // Total damage over beam phase
     public static final float LASER_COOLDOWN = 6.0f;   // Cooldown after firing
     public static final float LASER_RANGE = 550f;   // Maximum beam length in pixels (~11.4 tiles)
-    public static final int LASER_MAX_AMMO = 4;      // Limited charges
+    public static final int LASER_MAX_AMMO = 8;      // Limited charges
 
     // HOMING_MISSILE — Guided tracking missile
     public static final float HOMING_DAMAGE = 45f;
@@ -190,7 +190,7 @@ public final class GameConfig {
     public static final float HOMING_TURN_RATE_DEG = 140f;   // Steering rotation speed in deg/s
     public static final float HOMING_LIFETIME = 2.2f;   // Maximum flight duration (Max distance ~528px)
     public static final float HOMING_LOCK_RANGE = 450f;   // Target acquisition range in pixels
-    public static final int HOMING_MAX_AMMO = 5;      // Limited charges
+    public static final int HOMING_MAX_AMMO = 20;      // Limited charges
 
     // ─── Group D: Tactical Equipment ─────────────────────────────────────────
 

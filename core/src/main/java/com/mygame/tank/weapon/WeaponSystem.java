@@ -20,7 +20,8 @@ import java.util.List;
  * <ul>
  *   <li>7 slots — chosen from all 7 {@link WeaponType} values</li>
  *   <li>Active slot fires on left-click</li>
- *   <li>Group A weapons: unlimited ammo, fire-rate controlled</li>
+ *   <li>DEFAULT_BULLET/SMG: unlimited ammo, fire-rate controlled</li>
+ *   <li>ARMOR_PIERCE and Group B/C weapons: limited ammo + per-use cooldown</li>
  *   <li>Group B/C weapons: limited ammo + per-use cooldown</li>
  *   <li>Slot selection via Weapon Hub (Tab key) — game does NOT pause</li>
  * </ul>
@@ -315,7 +316,7 @@ public class WeaponSystem {
     }
 
     private FireResult fireArmorPierce(float ox, float oy, float dx, float dy) {
-        weaponCooldown[activeWeaponSlot] = GameConfig.AP_FIRE_RATE;
+        consumeAmmoAndSetCooldown(GameConfig.AP_COOLDOWN);
         if (sfxManager != null) sfxManager.playWeaponSfx(WeaponType.ARMOR_PIERCE);
         List<Projectile> shots = new ArrayList<>(1);
         shots.add(Projectile.piercing(ox, oy, dx, dy,

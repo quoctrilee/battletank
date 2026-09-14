@@ -52,14 +52,14 @@ public class SiegeCannonFireStrategy implements BossFireStrategy {
     public SiegeCannonFireStrategy(BossConfig cfg) {
         this.cannonInterval    = cfg.getFloat("cannonInterval",    3.0f);
         this.cannonIntervalP2  = cfg.getFloat("cannonIntervalP2",  2.0f);
-        this.stunInterval      = cfg.getFloat("stunInterval",      2.0f);
-        this.stunIntervalP2    = cfg.getFloat("stunIntervalP2",    1.4f);
+        this.stunInterval      = cfg.getFloat("stunInterval",      3f);
+        this.stunIntervalP2    = cfg.getFloat("stunIntervalP2",    3f);
         this.cannonSpeed       = cfg.getFloat("cannonSpeed",       280f);
         this.cannonDamage      = cfg.getFloat("cannonDamage",      40f);
         this.cannonAoeRadius   = cfg.getFloat("cannonAoeRadius",   90f);
         this.stunDamage        = cfg.getFloat("stunDamage",        10f);
-        this.stunAoeRadius     = cfg.getFloat("stunAoeRadius",     80f);
-        this.stunDuration      = cfg.getFloat("stunDuration",      2.0f);
+        this.stunAoeRadius     = cfg.getFloat("stunAoeRadius",     60f);
+        this.stunDuration      = cfg.getFloat("stunDuration",      1.0f);
         this.stunBurstCount    = cfg.getInt("stunBurstCount",      3);
         this.stunBurstAngleDeg = cfg.getFloat("stunBurstAngleDeg", 25f);
         this.bulletSpeed       = cfg.getFloat("bulletSpeed",       240f);

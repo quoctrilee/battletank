@@ -6,7 +6,9 @@ import com.mygame.tank.config.GameConfig;
  * All playable weapon types, split into three groups:
  *
  * <ul>
- *   <li>Group A — Direct DPS (unlimited ammo, fire-rate controlled)</li>
+ *   <li>Group A — Direct DPS. DEFAULT_BULLET and SUBMACHINE_GUN: unlimited
+ *       ammo, fire-rate controlled. ARMOR_PIERCE: limited ammo + per-use
+ *       cooldown, same shape as Group B/C ("special").</li>
  *   <li>Group B — AoE (limited ammo + cooldown)</li>
  *   <li>Group C — Special / Control (limited ammo + cooldown)</li>
  * </ul>
@@ -16,7 +18,7 @@ public enum WeaponType {
     // ── Group A: Direct DPS ────────────────────────────────────────────────
     DEFAULT_BULLET("Default", "Default Shell", GameConfig.DEFAULT_MAX_AMMO, GameConfig.DEFAULT_FIRE_RATE, 0f),
     SUBMACHINE_GUN("SMG", "Submachine Gun", GameConfig.SMG_MAX_AMMO, GameConfig.SMG_FIRE_RATE, 0f),
-    ARMOR_PIERCE("AP", "Armor Piercing", GameConfig.AP_MAX_AMMO, GameConfig.AP_FIRE_RATE, 0f),
+    ARMOR_PIERCE("AP", "Armor Piercing", GameConfig.AP_MAX_AMMO, 0f, GameConfig.AP_COOLDOWN),
 
     // ── Group B: AoE ───────────────────────────────────────────────────────
     CANNON("Cannon", "Heavy Cannon", GameConfig.CANNON_MAX_AMMO, 0f, GameConfig.CANNON_COOLDOWN),
@@ -57,7 +59,8 @@ public enum WeaponType {
     public final float cooldown;
 
     /**
-     * True for weapons that have a cooldown + ammo economy.
+     * True for weapons that have a cooldown + limited-ammo economy
+     * (Group B/C, and now ARMOR_PIERCE).
      */
     public boolean isSpecial() {
         return maxAmmo > 0;
