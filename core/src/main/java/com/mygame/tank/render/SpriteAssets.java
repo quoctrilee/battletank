@@ -37,8 +37,8 @@ import java.util.Map;
 public class SpriteAssets {
 
     // ─── Tank body ────────────────────────────────────────────────────────────
-    public final Texture bodyTexture;
-    public final TextureRegion bodyRegion;
+    public Texture bodyTexture;
+    public TextureRegion bodyRegion;
 
     // ─── Default weapon sheet ────────────────────────────────────────────────
     public final Texture defaultWeaponSheet;
@@ -109,8 +109,9 @@ public class SpriteAssets {
     // ─── Constructor ─────────────────────────────────────────────────────────
 
     public SpriteAssets() {
-        // Body
-        bodyTexture = new Texture(Gdx.files.internal("body/body.png"));
+        // Body — use whichever skin the player chose on SkinScreen
+        bodyTexture = new Texture(Gdx.files.internal(
+            com.mygame.tank.SkinManager.getSelectedBodyPath()));
         bodyTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
         bodyRegion = new TextureRegion(bodyTexture);
 
@@ -230,6 +231,27 @@ public class SpriteAssets {
         }
     }
 
+    // ─── Player body skin reload ───────────────────────────────────────────────
+
+    /**
+     * Reloads the player body texture from the currently selected skin.
+     * Call this at the start of each game session so skin changes made on
+     * {@link com.mygame.tank.screen.SkinScreen} are reflected in-game.
+     */
+    public void reloadPlayerBody() {
+        if (bodyTexture != null) {
+            bodyTexture.dispose();
+            bodyTexture = null;
+        }
+
+        bodyTexture = new Texture(Gdx.files.internal(
+            com.mygame.tank.SkinManager.getSelectedBodyPath()));
+        bodyTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+
+        bodyRegion = new TextureRegion(bodyTexture);
+        register("player_body", bodyRegion);
+    }
+
     // ─── Dynamic registry helpers ─────────────────────────────────────────────
 
     /** Registers (or replaces) a TextureRegion under the given key. */
@@ -310,7 +332,10 @@ public class SpriteAssets {
     // ─── Dispose ─────────────────────────────────────────────────────────────
 
     public void dispose() {
-        bodyTexture.dispose();
+        if (bodyTexture != null) {
+            bodyTexture.dispose();
+            bodyTexture = null;
+        }
         defaultWeaponSheet.dispose();
         bossSheet.dispose();
         viperSheet.dispose();

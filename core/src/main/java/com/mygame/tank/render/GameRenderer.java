@@ -98,6 +98,27 @@ public class GameRenderer {
      */
     private com.mygame.tank.controller.player.AndroidInputSource androidInput = null;
 
+    // ─── In-game pause / settings ──────────────────────────────────────────────
+
+    /** Whether the pause overlay should be drawn this frame. */
+    private boolean showPause = false;
+    /** Whether the game is currently muted (reflected on the mute button label). */
+    private boolean gameMuted = false;
+    /** Accumulated play time in seconds — set by GameScreen each frame. */
+    private float gameTimer  = 0f;
+
+    // Settings button (HUD coords, Y=0 bottom) — updated each renderHud call.
+    private final com.badlogic.gdx.math.Rectangle settingsBtnRect    = new com.badlogic.gdx.math.Rectangle();
+    // Pause menu buttons (HUD coords) — updated each renderPauseMenu call.
+    private final com.badlogic.gdx.math.Rectangle pauseBackRect      = new com.badlogic.gdx.math.Rectangle();
+    private final com.badlogic.gdx.math.Rectangle pauseMuteRect      = new com.badlogic.gdx.math.Rectangle();
+    private final com.badlogic.gdx.math.Rectangle pauseControlsRect  = new com.badlogic.gdx.math.Rectangle();
+
+    /** Radius of the settings button touch target (px). */
+    public static final int SETTINGS_BTN_RADIUS = 30;
+    /** Distance from the top-right corner to the settings button centre (px). */
+    public static final int SETTINGS_BTN_MARGIN = 48;
+
     public GameRenderer() {
         shapeRenderer = new ShapeRenderer();
         worldBatch = new SpriteBatch();
@@ -728,6 +749,14 @@ public class GameRenderer {
     }
 
     /**
+     * Reloads the player body texture from the currently selected skin.
+     * Call before starting a new game world so skin-screen changes take effect.
+     */
+    public void reloadPlayerBody() {
+        assets.reloadPlayerBody();
+    }
+
+    /**
      * Thông báo khi screen resize (hiện tại không cần action).
      */
     public void onResize() { /* reserved for future framebuffer resize */ }
@@ -745,6 +774,41 @@ public class GameRenderer {
         this.androidInput = src;
     }
 
+    /**
+     * Updates the pause-overlay rendering state. Call from {@link com.mygame.tank.screen.GameScreen}
+     * before each {@link #render} call.
+     *
+     * @param paused whether the pause overlay should be shown
+     * @param muted  whether the game audio is currently muted
+     */
+    public void setPauseState(boolean paused, boolean muted) {
+        this.showPause = paused;
+        this.gameMuted = muted;
+    }
+
+    /**
+     * Updates the accumulated play timer shown on the HUD.
+     * Call from {@link com.mygame.tank.screen.GameScreen} each frame before rendering.
+     *
+     * @param seconds total seconds played so far this session
+     */
+    public void setGameTimer(float seconds) {
+        this.gameTimer = seconds;
+    }
+
+    // ─── Settings button hit-test (HUD coords, Y=0 at bottom) ─────────────────
+
+    /** Returns true if the given HUD-space point hits the settings button. */
+    public boolean isSettingsHit(float hudX, float hudY) {
+        return settingsBtnRect.contains(hudX, hudY);
+    }
+
+    /** Returns the settings button bounding rect in HUD space (Y=0 at bottom). */
+    public com.badlogic.gdx.math.Rectangle getSettingsBtnRect()   { return settingsBtnRect; }
+    public com.badlogic.gdx.math.Rectangle getPauseBackRect()      { return pauseBackRect; }
+    public com.badlogic.gdx.math.Rectangle getPauseMuteRect()      { return pauseMuteRect; }
+    public com.badlogic.gdx.math.Rectangle getPauseControlsRect()  { return pauseControlsRect; }
+
     private void renderHud(GameWorld world) {
         int sw = Gdx.graphics.getWidth();
         int sh = Gdx.graphics.getHeight();
@@ -754,33 +818,44 @@ public class GameRenderer {
 
         Tank player = world.getPlayer();
         WeaponSystem ws = ((PlayerTurretComponent) player.getTurret()).getWeaponSystem();
+        GameWorld.GameState state = world.getGameState();
 
-        renderHpBar(player, sh);
-        renderWeaponSlots(ws, sw, sh);
-        renderEquipmentSlots(ws, sw, sh);
-        renderBossHpBar(world, sw, sh);  // multi-boss HUD
-        renderGameStateOverlay(world.getGameState(), sw, sh);
+        if (state == GameWorld.GameState.PLAYING) {
+            renderHpBar(player, sh);
+            renderWeaponSlots(ws, sw, sh);
+            renderEquipmentSlots(ws, sw, sh);
+            renderBossHpBar(world, sw, sh);  // multi-boss HUD
 
-        // Weapon hub overlay
-        if (ws != null && ws.isHubOpen()) {
-            renderWeaponHub(ws, sw, sh);
-        }
+            // Weapon hub overlay
+            if (ws != null && ws.isHubOpen()) {
+                renderWeaponHub(ws, sw, sh);
+            }
 
-        // Android zone + joystick overlay (drawn inside the same Filled block)
-        if (androidInput != null) {
-            renderAndroidZones(sw, sh);
-            renderFloatingJoystick(
-                androidInput.isMoveActive(),
-                androidInput.getMoveOriginX(), androidInput.getMoveOriginY(),
-                androidInput.getMoveKnobX(),   androidInput.getMoveKnobY(),
-                com.mygame.tank.controller.player.AndroidInputSource.MOVE_RADIUS,
-                new Color(0.25f, 0.75f, 0.30f, 0.85f));
-            renderFloatingJoystick(
-                androidInput.isAimActive(),
-                androidInput.getAimOriginX(), androidInput.getAimOriginY(),
-                androidInput.getAimKnobX(),   androidInput.getAimKnobY(),
-                com.mygame.tank.controller.player.AndroidInputSource.AIM_RADIUS,
-                new Color(0.30f, 0.60f, 1.00f, 0.85f));
+            // Android zone + joystick overlay
+            if (androidInput != null) {
+                renderAndroidZones(sw, sh);
+                renderFloatingJoystick(
+                    androidInput.isMoveActive(),
+                    androidInput.getMoveOriginX(), androidInput.getMoveOriginY(),
+                    androidInput.getMoveKnobX(),   androidInput.getMoveKnobY(),
+                    com.mygame.tank.controller.player.AndroidInputSource.MOVE_RADIUS,
+                    new Color(0.25f, 0.75f, 0.30f, 0.85f));
+                renderFloatingJoystick(
+                    androidInput.isAimActive(),
+                    androidInput.getAimOriginX(), androidInput.getAimOriginY(),
+                    androidInput.getAimKnobX(),   androidInput.getAimKnobY(),
+                    com.mygame.tank.controller.player.AndroidInputSource.AIM_RADIUS,
+                    new Color(0.30f, 0.60f, 1.00f, 0.85f));
+            }
+
+            // Settings button (⚙) — only drawn while playing
+            renderSettingsButton(sw, sh);
+
+            // Pause overlay — drawn on top of everything when active
+            if (showPause) renderPauseMenu(sw, sh);
+        } else {
+            // WIN or LOSE overlay — clean result panel without HUD clutter
+            renderGameStateOverlay(state, sw, sh);
         }
 
         shapeRenderer.end();
@@ -790,62 +865,206 @@ public class GameRenderer {
         hudBatch.begin();
         font.setColor(Color.WHITE);
 
-        renderHpText(player, sh);
-        renderWeaponSlotText(ws, sw, sh);
-        renderEquipmentSlotText(ws, sw, sh);
-        renderBossHudText(world, sw, sh);    // multi-boss text
-        renderRoomProgressText(world.getRoomManager(), sw, sh);
-        renderGameStateText(world.getGameState(), sw, sh);
-        renderControlsHint(world.getGameState(), sh);
+        if (state == GameWorld.GameState.PLAYING) {
+            renderHpText(player, sh);
+            renderWeaponSlotText(ws, sw, sh);
+            renderEquipmentSlotText(ws, sw, sh);
+            renderBossHudText(world, sw, sh);    // multi-boss text
+            renderRoomProgressText(world.getRoomManager(), sw, sh);
+            renderControlsHint(world.getGameState(), sh);
 
-        // Draw weapon slot sprite icons on top of text (uses hudBatch which is already open)
-        renderWeaponSlotIcons(ws, sw);
-        renderEquipmentSlotIcons(ws, sw);
+            // Draw weapon slot sprite icons on top of text (uses hudBatch which is already open)
+            renderWeaponSlotIcons(ws, sw);
+            renderEquipmentSlotIcons(ws, sw);
 
-        if (ws != null && ws.isHubOpen()) {
-            renderWeaponHubIcons(ws, sw, sh);
-            renderWeaponHubText(ws, sw, sh);
-        }
+            if (ws != null && ws.isHubOpen()) {
+                renderWeaponHubIcons(ws, sw, sh);
+                renderWeaponHubText(ws, sw, sh);
+            }
 
-        // Android zone labels
-        if (androidInput != null) {
-            renderAndroidZoneLabels(sw, sh);
+            // Android zone labels
+            if (androidInput != null) {
+                renderAndroidZoneLabels(sw, sh);
+            }
+
+            // Settings button label (⚙ / MENU text)
+            renderSettingsButtonText(sw, sh);
+
+            // Pause menu text
+            if (showPause) renderPauseMenuText(sw, sh);
+        } else {
+            // End-game result text only — completely clean English display
+            renderGameStateText(state, sw, sh);
         }
 
         hudBatch.end();
     }
 
-    // ─── Android overlay ──────────────────────────────────────────────────────
+    // ─── Settings button (⚙, top-right corner) ────────────────────────────────
 
     /**
-     * Zone overlay — dividers and fire flash removed per user request.
-     * Method kept for future use; currently draws nothing.
+     * Draws the in-game settings/menu button as a small hamburger-icon circle
+     * in the top-right corner. Also updates {@link #settingsBtnRect} for hit-test.
+     * Must be called inside an active shapeRenderer FILLED block.
      */
-    private void renderAndroidZones(int sw, int sh) {
-        // intentionally empty — divider lines and fire-flash overlay removed
+    private void renderSettingsButton(int sw, int sh) {
+        float cx = sw - SETTINGS_BTN_MARGIN;
+        float cy = sh - SETTINGS_BTN_MARGIN;
+        float r  = SETTINGS_BTN_RADIUS;
+
+        // Update hit-test rect (square around circle)
+        settingsBtnRect.set(cx - r, cy - r, r * 2f, r * 2f);
+
+        // Outer circle background
+        shapeRenderer.setColor(showPause
+            ? new Color(0.25f, 0.55f, 1.00f, 0.90f)
+            : new Color(0.08f, 0.08f, 0.14f, 0.80f));
+        shapeRenderer.circle(cx, cy, r, 28);
+
+        // Three horizontal bars (hamburger icon)
+        shapeRenderer.setColor(1f, 1f, 1f, showPause ? 1.0f : 0.85f);
+        float bw = r * 1.0f, bh = 2.5f, bx = cx - bw / 2f;
+        shapeRenderer.rect(bx, cy + 6,  bw, bh);
+        shapeRenderer.rect(bx, cy,       bw, bh);
+        shapeRenderer.rect(bx, cy - 8,  bw, bh);
     }
 
     /**
-     * Draws zone labels (FIRE / AIM) using the hudBatch text pass.
-     * Must be called while {@link #hudBatch} is open.
+     * Draws the settings button label hint. Must be called while hudBatch is open.
+     */
+    private void renderSettingsButtonText(int sw, int sh) {
+        // No additional text needed — the hamburger icon is self-explanatory
+    }
+
+    // ─── Pause overlay ────────────────────────────────────────────────────────
+
+    private static final int PAUSE_PANEL_W  = 380;
+    private static final int PAUSE_PANEL_H  = 280;
+    private static final int PAUSE_BTN_W    = 300;
+    private static final int PAUSE_BTN_H    = 58;
+    private static final int PAUSE_BTN_GAP  = 16;
+    private static final int PAUSE_CORNER_R = 12;
+
+    /**
+     * Renders the semi-transparent pause overlay with three action buttons.
+     * Updates the pause button rectangles for hit-testing.
+     * Must be called inside an active shapeRenderer FILLED block.
+     */
+    private void renderPauseMenu(int sw, int sh) {
+        // Full-screen dim
+        shapeRenderer.setColor(0f, 0f, 0f, 0.55f);
+        shapeRenderer.rect(0, 0, sw, sh);
+
+        // Panel background
+        float px = sw / 2f - PAUSE_PANEL_W / 2f;
+        float py = sh / 2f - PAUSE_PANEL_H / 2f;
+        shapeRenderer.setColor(0.06f, 0.09f, 0.18f, 0.96f);
+        shapeRenderer.rect(px, py, PAUSE_PANEL_W, PAUSE_PANEL_H);
+
+        // Panel border
+        shapeRenderer.setColor(0.25f, 0.55f, 1.00f, 0.80f);
+        drawBorderRect(px, py, PAUSE_PANEL_W, PAUSE_PANEL_H, 2);
+
+        // Three buttons: Controls (bottom), Mute (middle), Back (top)
+        float bx   = sw / 2f - PAUSE_BTN_W / 2f;
+        float btnY3 = py + 24;                          // Controls (bottom)
+        float btnY2 = btnY3 + PAUSE_BTN_H + PAUSE_BTN_GAP;  // Mute (middle)
+        float btnY1 = btnY2 + PAUSE_BTN_H + PAUSE_BTN_GAP;  // Back  (top)
+
+        pauseControlsRect.set(bx, btnY3, PAUSE_BTN_W, PAUSE_BTN_H);
+        pauseMuteRect    .set(bx, btnY2, PAUSE_BTN_W, PAUSE_BTN_H);
+        pauseBackRect    .set(bx, btnY1, PAUSE_BTN_W, PAUSE_BTN_H);
+
+        drawPauseBtn(pauseBackRect,     new Color(0.70f, 0.15f, 0.10f, 0.90f));
+        drawPauseBtn(pauseMuteRect,     new Color(0.12f, 0.35f, 0.65f, 0.90f));
+        drawPauseBtn(pauseControlsRect, new Color(0.10f, 0.28f, 0.14f, 0.90f));
+    }
+
+    private void drawPauseBtn(com.badlogic.gdx.math.Rectangle r, Color fill) {
+        float cr = PAUSE_CORNER_R;
+        shapeRenderer.setColor(fill);
+        shapeRenderer.rect(r.x + cr, r.y, r.width - cr * 2, r.height);
+        shapeRenderer.rect(r.x, r.y + cr, r.width, r.height - cr * 2);
+        shapeRenderer.circle(r.x + cr,           r.y + cr,           cr, 16);
+        shapeRenderer.circle(r.x + r.width - cr, r.y + cr,           cr, 16);
+        shapeRenderer.circle(r.x + cr,           r.y + r.height - cr, cr, 16);
+        shapeRenderer.circle(r.x + r.width - cr, r.y + r.height - cr, cr, 16);
+        // Border
+        shapeRenderer.setColor(1f, 1f, 1f, 0.25f);
+        drawBorderRect(r.x, r.y, r.width, r.height, 1.5f);
+    }
+
+    /**
+     * Draws text labels for the pause menu buttons. Must be called while hudBatch is open.
+     */
+    private void renderPauseMenuText(int sw, int sh) {
+        float py = sh / 2f - PAUSE_PANEL_H / 2f;
+
+        // Title
+        font.getData().setScale(1.6f);
+        font.setColor(new Color(0.55f, 0.85f, 1.00f, 1f));
+        layout.setText(font, "PAUSED");
+        font.draw(hudBatch, layout,
+            sw / 2f - layout.width / 2f,
+            py + PAUSE_PANEL_H - 14f);
+        font.getData().setScale(1f);
+
+        // Button labels
+        font.setColor(Color.WHITE);
+        drawPauseBtnLabel("BACK TO MENU",                 pauseBackRect);
+        drawPauseBtnLabel(gameMuted ? "UNMUTE" : "MUTE",  pauseMuteRect);
+        drawPauseBtnLabel("CONTROLS SETTINGS",            pauseControlsRect);
+        font.setColor(Color.WHITE);
+    }
+
+    private void drawPauseBtnLabel(String text, com.badlogic.gdx.math.Rectangle r) {
+        layout.setText(font, text);
+        font.draw(hudBatch, layout,
+            r.x + (r.width  - layout.width)  / 2f,
+            r.y + (r.height + layout.height) / 2f);
+    }
+
+    // ─── Android overlay ──────────────────────────────────────────────────────
+
+    /**
+     * Draws a subtle horizontal divider line at the fire/joystick zone boundary.
+     */
+    private void renderAndroidZones(int sw, int sh) {
+        float split    = androidInput.getSplitRatio();
+        float dividerY = sh * split; // HUD coords: Y=0 at bottom, so bottom zone = [0, split*sh]
+        shapeRenderer.setColor(1f, 1f, 1f, 0.08f);
+        shapeRenderer.rect(0, dividerY - 1f, sw, 2f);
+        // Vertical divider in joystick zone
+        shapeRenderer.setColor(1f, 1f, 1f, 0.05f);
+        shapeRenderer.rect(sw / 2f - 1f, 0, 2f, dividerY);
+    }
+
+    /**
+     * Draws zone labels (FIRE / MOVE / AIM) — called while hudBatch is open.
      */
     private void renderAndroidZoneLabels(int sw, int sh) {
-        int halfW = sw / 2;
-        int halfH = sh / 2;
+        float split    = androidInput.getSplitRatio();
+        float dividerY = sh * split; // HUD Y of fire/joystick boundary
 
-        // "FIRE" label — top-right zone centre, always subtle
-        font.setColor(new Color(1f, 1f, 1f, 0.18f));
+        // "FIRE" — centred in the fire zone (above divider)
+        font.setColor(new Color(1f, 0.55f, 0.15f, 0.20f));
         layout.setText(font, "FIRE");
-        font.draw(hudBatch, layout,
-            halfW + (halfW - layout.width) / 2f,
-            halfH + (sh - halfH) / 2f + layout.height / 2f);
+        float fireCentreY = dividerY + (sh - dividerY) / 2f + layout.height / 2f;
+        font.draw(hudBatch, layout, (sw - layout.width) / 2f, fireCentreY);
 
-        // "AIM" label — bottom-right zone centre
-        font.setColor(new Color(0.5f, 0.8f, 1f, androidInput.isAimActive() ? 0.50f : 0.18f));
+        // "MOVE" — centred in bottom-left joystick area
+        font.setColor(new Color(0.35f, 1f, 0.45f, androidInput.isMoveActive() ? 0.45f : 0.18f));
+        layout.setText(font, "MOVE");
+        font.draw(hudBatch, layout,
+            (sw / 2f - layout.width) / 2f,
+            dividerY / 2f + layout.height / 2f);
+
+        // "AIM" — centred in bottom-right joystick area
+        font.setColor(new Color(0.35f, 0.65f, 1f, androidInput.isAimActive() ? 0.45f : 0.18f));
         layout.setText(font, "AIM");
         font.draw(hudBatch, layout,
-            halfW + (halfW - layout.width) / 2f,
-            halfH / 2f + layout.height / 2f);
+            sw / 2f + (sw / 2f - layout.width) / 2f,
+            dividerY / 2f + layout.height / 2f);
 
         font.setColor(Color.WHITE);
     }
@@ -1133,14 +1352,44 @@ public class GameRenderer {
 
     // ─── Win/Lose overlay ────────────────────────────────────────────────────
 
+    /** Width / Height of the end-game result panel (px). */
+    private static final int RESULT_PANEL_W = 500;
+    private static final int RESULT_PANEL_H = 260;
+
     private void renderGameStateOverlay(GameWorld.GameState state, int sw, int sh) {
         if (state == GameWorld.GameState.WIN) {
-            shapeRenderer.setColor(new Color(0f, 0.4f, 0.1f, 0.65f));
+            // Full-screen green tint
+            shapeRenderer.setColor(new Color(0f, 0.4f, 0.1f, 0.55f));
             shapeRenderer.rect(0, 0, sw, sh);
+            // Result panel
+            drawResultPanel(sw, sh, new Color(0.04f, 0.18f, 0.08f, 0.96f),
+                new Color(0.20f, 0.90f, 0.35f, 0.85f));
         } else if (state == GameWorld.GameState.LOSE) {
-            shapeRenderer.setColor(new Color(0.4f, 0f, 0f, 0.65f));
+            // Full-screen red tint
+            shapeRenderer.setColor(new Color(0.4f, 0f, 0f, 0.55f));
             shapeRenderer.rect(0, 0, sw, sh);
+            // Result panel
+            drawResultPanel(sw, sh, new Color(0.18f, 0.04f, 0.04f, 0.96f),
+                new Color(0.90f, 0.18f, 0.18f, 0.85f));
         }
+    }
+
+    /**
+     * Draws a centered result panel background + border.
+     * Must be called inside an active shapeRenderer FILLED block.
+     */
+    private void drawResultPanel(int sw, int sh, Color panelColor, Color borderColor) {
+        float px = (sw - RESULT_PANEL_W) / 2f;
+        float py = (sh - RESULT_PANEL_H) / 2f;
+        // Panel fill
+        shapeRenderer.setColor(panelColor);
+        shapeRenderer.rect(px, py, RESULT_PANEL_W, RESULT_PANEL_H);
+        // Border (2px)
+        shapeRenderer.setColor(borderColor);
+        drawBorderRect(px, py, RESULT_PANEL_W, RESULT_PANEL_H, 2f);
+        // Inner highlight line at top
+        shapeRenderer.setColor(borderColor.r, borderColor.g, borderColor.b, 0.35f);
+        shapeRenderer.rect(px + 2, py + RESULT_PANEL_H - 4, RESULT_PANEL_W - 4, 2f);
     }
 
     // ─── Text HUD ─────────────────────────────────────────────────────────────
@@ -1337,34 +1586,99 @@ public class GameRenderer {
     }
 
     /**
-     * Hiển thị tiến trình dọn phòng ở góc trên phải.
+     * Hiển thị timer đang chạy ở góc trên phải (chỉ khi PLAYING).
+     * Hiển thị tiến trình dọn phòng bên trên timer.
      */
     private void renderRoomProgressText(RoomProgressionManager rm, int sw, int sh) {
-        // Đếm số phòng đã clear (không có getter tống số, nên hiển thị dựa trên win state)
+        // Timer — top right, phía trên tiến trình
+        if (!rm.isGameWon()) {
+            int mm = (int) gameTimer / 60;
+            int ss = (int) gameTimer % 60;
+            font.getData().setScale(1.1f);
+            font.setColor(new Color(0.85f, 0.95f, 0.75f, 1f));
+            String timerStr = String.format("%02d:%02d", mm, ss);
+            layout.setText(font, timerStr);
+            font.draw(hudBatch, layout, sw - layout.width - 12f, sh - 10f);
+            font.getData().setScale(1f);
+        }
+
+        // Room progress hint
         font.setColor(new Color(0.7f, 0.9f, 0.7f, 1f));
         font.draw(hudBatch, rm.isGameWon() ? "ALL BOSSES DEFEATED!" : "Survive & Defeat All Bosses",
-            sw - 280f, sh - 10);
+            sw - 280f, sh - 30f);
         font.setColor(Color.WHITE);
     }
 
+    /**
+     * Hiển thị timer đang chạy ở góc trên phải khi state = PLAYING,
+     * hoặc màn hình kết quả chi tiết khi WIN/LOSE.
+     */
     private void renderGameStateText(GameWorld.GameState state, int sw, int sh) {
+        int mm = (int) gameTimer / 60;
+        int ss = (int) gameTimer % 60;
+        String timeStr = String.format("%02d:%02d", mm, ss);
+
         if (state == GameWorld.GameState.WIN) {
-            font.getData().setScale(2.5f);
-            font.setColor(Color.YELLOW);
-            layout.setText(font, "VICTORY!");
-            font.draw(hudBatch, layout, sw / 2f - layout.width / 2f, sh / 2f + 40);
+            float panelCX = sw / 2f;
+            float panelCY = sh / 2f;
+
+            // Title
+            font.getData().setScale(2.8f);
+            font.setColor(new Color(0.25f, 1.00f, 0.45f, 1f));
+            layout.setText(font, "VICTORY");
+            font.draw(hudBatch, layout,
+                panelCX - layout.width / 2f,
+                panelCY + RESULT_PANEL_H / 2f - 20f);
             font.getData().setScale(1f);
+
+            // Time played
+            font.getData().setScale(1.4f);
             font.setColor(Color.WHITE);
-            font.draw(hudBatch, "Press R to restart", sw / 2f - 80, sh / 2f);
+            layout.setText(font, "Time: " + timeStr);
+            font.draw(hudBatch, layout,
+                panelCX - layout.width / 2f,
+                panelCY + 28f);
+            font.getData().setScale(1f);
+
+            // Click hint
+            font.setColor(new Color(0.70f, 0.90f, 0.70f, 0.90f));
+            layout.setText(font, "Click anywhere to return to Main Menu");
+            font.draw(hudBatch, layout,
+                panelCX - layout.width / 2f,
+                panelCY - 20f);
+
         } else if (state == GameWorld.GameState.LOSE) {
-            font.getData().setScale(2.5f);
-            font.setColor(Color.RED);
+            float panelCX = sw / 2f;
+            float panelCY = sh / 2f;
+
+            // Title
+            font.getData().setScale(2.8f);
+            font.setColor(new Color(1.00f, 0.25f, 0.25f, 1f));
             layout.setText(font, "GAME OVER");
-            font.draw(hudBatch, layout, sw / 2f - layout.width / 2f, sh / 2f + 40);
+            font.draw(hudBatch, layout,
+                panelCX - layout.width / 2f,
+                panelCY + RESULT_PANEL_H / 2f - 20f);
             font.getData().setScale(1f);
+
+            // Time played
+            font.getData().setScale(1.4f);
             font.setColor(Color.WHITE);
-            font.draw(hudBatch, "Press R to restart", sw / 2f - 80, sh / 2f);
+            layout.setText(font, "Time: " + timeStr);
+            font.draw(hudBatch, layout,
+                panelCX - layout.width / 2f,
+                panelCY + 28f);
+            font.getData().setScale(1f);
+
+            // Click hint
+            font.setColor(new Color(0.90f, 0.70f, 0.70f, 0.90f));
+            layout.setText(font, "Click anywhere to return to Main Menu");
+            font.draw(hudBatch, layout,
+                panelCX - layout.width / 2f,
+                panelCY - 20f);
         }
+
+        font.setColor(Color.WHITE);
+        font.getData().setScale(1f);
     }
 
     private void renderControlsHint(GameWorld.GameState state, int sh) {
