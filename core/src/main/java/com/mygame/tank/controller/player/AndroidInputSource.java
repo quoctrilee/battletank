@@ -14,57 +14,62 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 /**
  * Android split-screen touch controller using raw touch input and floating joysticks.
  *
- * <h3>Zone Layout</h3>
+ * <h3>Zone Layout (new)</h3>
  * <pre>
- * ┌─────────────────────┬─────────────────────┐
- * │                     │     FIRE ZONE       │
- * │   MOVE JOYSTICK     │  (tap anywhere)     │
- * │   (floating)        ├─────────────────────┤
- * │                     │     AIM JOYSTICK    │
- * │                     │     (floating)      │
- * └─────────────────────┴─────────────────────┘
+ * ┌─────────────────────────────────────────────┐
+ * │                                             │
+ * │          FIRE ZONE  (top portion)           │
+ * │       tap / hold anywhere = fire            │
+ * │                                             │
+ * ├──────────────────┬──────────────────────────┤  ← splitRatio boundary
+ * │  MOVE JOYSTICK   │   AIM JOYSTICK           │
+ * │  (bottom-left)   │   (bottom-right)         │
+ * └──────────────────┴──────────────────────────┘
  * </pre>
  *
- * <p>Extend {@link InputAdapter} so the instance can be added to an
- * {@link com.badlogic.gdx.InputMultiplexer} alongside the UI {@link Stage}.
- * Stage is processed first (equip/hub buttons), then unhandled raw touches
- * fall through to this processor for zone handling.
+ * <p>The boundary position is controlled by
+ * {@link com.mygame.tank.config.ControlsConfig#getSplitRatio()}.
+ * Default = 55 % of screen height for joystick zone.
+ *
+ * <p>The in-game settings button (top-right corner) is handled by
+ * {@link com.mygame.tank.screen.GameScreen.GameInputAdapter} with higher priority,
+ * so taps on that button are never forwarded here.
  */
 public class AndroidInputSource extends InputAdapter implements PlayerInputSource {
 
     // ── Joystick config ──────────────────────────────────────────────────────
-    /** Outer radius of the move joystick (px). Larger = more comfortable. */
+    /** Outer radius of the move joystick (px). */
     public static final float MOVE_RADIUS = 140f;
     /** Outer radius of the aim joystick (px). */
     public static final float AIM_RADIUS  = 110f;
-    /** Knob radius drawn inside outer circle (fraction of outer radius). */
+    /** Knob radius as fraction of outer radius. */
     public static final float KNOB_FRAC   = 0.35f;
     /** Dead-zone: fraction of radius below which input is ignored. */
     private static final float DEADZONE   = 0.15f;
     /** World units in front of tank where the virtual aim point is projected. */
     private static final float AIM_WORLD_RADIUS = 8f;
 
-    // ── Move joystick (left half of screen) ──────────────────────────────────
+    // ── Zone split ratio ─────────────────────────────────────────────────────
+    /** Cached split ratio — refresh via {@link #refreshSplitRatio()}. */
+    private float splitRatio;
+
+    // ── Move joystick (bottom-left zone) ─────────────────────────────────────
     private boolean moveActive  = false;
     private int     movePointer = -1;
-    /** Anchor point in screen coords (Y=0 at top). */
-    private float moveOriginX, moveOriginY;
-    /** Current knob position in screen coords (clamped to MOVE_RADIUS). */
-    private float moveKnobX, moveKnobY;
+    private float   moveOriginX, moveOriginY;
+    private float   moveKnobX,   moveKnobY;
 
-    // Snapped 8-direction output
     private boolean up, down, left, right;
 
-    // ── Aim joystick (bottom-right quadrant) ─────────────────────────────────
+    // ── Aim joystick (bottom-right zone) ─────────────────────────────────────
     private boolean aimActive  = false;
     private int     aimPointer = -1;
-    private float aimOriginX, aimOriginY;
-    private float aimKnobX,   aimKnobY;
-    /** Persists last aimed angle even when knob released. Default: facing up. */
+    private float   aimOriginX, aimOriginY;
+    private float   aimKnobX,   aimKnobY;
+    /** Persists last aimed angle even when knob is released. Default: facing up. */
     private float lastAimAngleRad = MathUtils.PI / 2f;
 
-    // ── Fire zone (top-right quadrant) ────────────────────────────────────────
-    /** True while a finger is held in the fire zone. */
+    // ── Fire zone (top portion) ───────────────────────────────────────────────
     private boolean fireHeld    = false;
     private int     firePointer = -1;
 
@@ -82,10 +87,13 @@ public class AndroidInputSource extends InputAdapter implements PlayerInputSourc
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * @param stage Scene2D stage to place equipment/hub-slot buttons on.
-     * @param skin  Skin with "slot" ButtonStyle (built by {@link AndroidUiSkin}).
+     * @param stage Scene2D stage for equipment/hub-slot buttons.
+     * @param skin  Skin with "slot" ButtonStyle.
      */
     public AndroidInputSource(Stage stage, Skin skin) {
+        // Load current split ratio from preferences.
+        splitRatio = com.mygame.tank.config.ControlsConfig.getSplitRatio();
+
         equipButtons   = buildButtonRow(skin, 4);
         hubSlotButtons = buildButtonRow(skin, 7);
 
@@ -99,6 +107,11 @@ public class AndroidInputSource extends InputAdapter implements PlayerInputSourc
         setHubOpen(false);
     }
 
+    /** Call after returning from the Controls Settings screen to pick up changes. */
+    public void refreshSplitRatio() {
+        splitRatio = com.mygame.tank.config.ControlsConfig.getSplitRatio();
+    }
+
     // ─── PlayerInputSource ────────────────────────────────────────────────────
 
     @Override
@@ -110,17 +123,14 @@ public class AndroidInputSource extends InputAdapter implements PlayerInputSourc
 
     @Override
     public PlayerInput read(Camera camera, Vector2 tankPos) {
-        // Aim world point derived from last aim angle
         float mouseWorldX = tankPos.x + AIM_WORLD_RADIUS * MathUtils.cos(lastAimAngleRad);
         float mouseWorldY = tankPos.y + AIM_WORLD_RADIUS * MathUtils.sin(lastAimAngleRad);
 
-        // Consume pending slot selections
         int directSlot  = directWeaponSlotPending;
         int directEquip = directEquipSlotPending;
         directWeaponSlotPending = -1;
         directEquipSlotPending  = -1;
 
-        // Equipment / hub-slot (edge-triggered via listeners)
         int     hubSelectSlot = -1;
         boolean useEquip1 = false, useEquip2 = false, useEquip3 = false, useEquip4 = false;
         if (hubOpen) {
@@ -135,7 +145,7 @@ public class AndroidInputSource extends InputAdapter implements PlayerInputSourc
 
         return new PlayerInput(
                 up, down, left, right,
-                fireHeld,           // continuous while finger is held
+                fireHeld,
                 false, hubSelectSlot,
                 useEquip1, useEquip2, useEquip3, useEquip4,
                 mouseWorldX, mouseWorldY,
@@ -149,44 +159,42 @@ public class AndroidInputSource extends InputAdapter implements PlayerInputSourc
         int sw = Gdx.graphics.getWidth();
         int sh = Gdx.graphics.getHeight();
 
-        // ── Check weapon & equip HUD slot tap first (bottom area of screen) ─────
+        // ── HUD slot tap (weapon / equip) — highest priority ─────────────────
         int directSlot = hitWeaponSlot(screenX, screenY, sw, sh);
-        if (directSlot >= 0) {
-            directWeaponSlotPending = directSlot;
-            return true;
-        }
+        if (directSlot >= 0) { directWeaponSlotPending = directSlot; return true; }
+
         int directEquip = hitEquipSlot(screenX, screenY, sh);
-        if (directEquip >= 0) {
-            directEquipSlotPending = directEquip;
-            return true;
-        }
+        if (directEquip >= 0) { directEquipSlotPending = directEquip; return true; }
 
-        boolean leftHalf = screenX < sw / 2;
-        // In screen coords Y=0 is top; top half of screen = smaller Y value
-        boolean topHalf  = screenY < sh / 2;
+        // ── Zone dispatch using splitRatio ────────────────────────────────────
+        // In screen coords Y=0 is at the TOP of the screen.
+        // The bottom (splitRatio * sh) pixels = joystick zone.
+        // The top ((1 - splitRatio) * sh) pixels = fire zone.
+        float zoneBoundaryScreenY = sh * (1f - splitRatio); // screen-Y of boundary
 
-        if (leftHalf) {
-            // ── Move joystick zone ──────────────────────────────────────────
-            if (!moveActive) {
-                moveActive  = true;
-                movePointer = pointer;
-                moveOriginX = screenX;
-                moveOriginY = screenY;
-                moveKnobX   = screenX;
-                moveKnobY   = screenY;
-                // No directions yet — knob at origin = dead-zone
+        boolean inFireZone = screenY < zoneBoundaryScreenY; // smaller Y = higher on screen
+
+        if (inFireZone) {
+            // ── Fire zone — tap/hold anywhere to fire ─────────────────────────
+            if (firePointer < 0) {
+                firePointer = pointer;
+                fireHeld    = true;
                 return true;
             }
         } else {
-            if (topHalf) {
-                // ── Fire zone (top-right) ────────────────────────────────────
-                if (firePointer < 0) {
-                    firePointer = pointer;
-                    fireHeld    = true;
+            // ── Joystick zone — left half = MOVE, right half = AIM ─────────
+            boolean leftHalf = screenX < sw / 2;
+            if (leftHalf) {
+                if (!moveActive) {
+                    moveActive  = true;
+                    movePointer = pointer;
+                    moveOriginX = screenX;
+                    moveOriginY = screenY;
+                    moveKnobX   = screenX;
+                    moveKnobY   = screenY;
                     return true;
                 }
             } else {
-                // ── Aim joystick zone (bottom-right) ─────────────────────────
                 if (!aimActive) {
                     aimActive  = true;
                     aimPointer = pointer;
@@ -229,7 +237,6 @@ public class AndroidInputSource extends InputAdapter implements PlayerInputSourc
         if (aimActive && pointer == aimPointer) {
             aimActive  = false;
             aimPointer = -1;
-            // lastAimAngleRad persists — turret keeps pointing where it was
             return true;
         }
         if (pointer == firePointer) {
@@ -244,19 +251,18 @@ public class AndroidInputSource extends InputAdapter implements PlayerInputSourc
 
     private void updateMoveDirections() {
         float dx =  (moveKnobX - moveOriginX);
-        float dy = -(moveKnobY - moveOriginY); // screen Y inverted → game Y up
+        float dy = -(moveKnobY - moveOriginY);
         float mag = (float) Math.sqrt(dx * dx + dy * dy);
 
         if (mag < MOVE_RADIUS * DEADZONE) {
             up = down = left = right = false;
             return;
         }
-        // Clamp knob to outer circle
         if (mag > MOVE_RADIUS) {
             float nx = dx / mag * MOVE_RADIUS;
             float ny = dy / mag * MOVE_RADIUS;
             moveKnobX = moveOriginX + nx;
-            moveKnobY = moveOriginY - ny; // un-invert for screen coord
+            moveKnobY = moveOriginY - ny;
         }
 
         float angleDeg = (float) Math.toDegrees(Math.atan2(dy, dx));
@@ -265,24 +271,23 @@ public class AndroidInputSource extends InputAdapter implements PlayerInputSourc
         up = down = left = right = false;
         switch (octant) {
             case 0: right = true; break;
-            case 1: right = true; up = true; break;
-            case 2: up = true; break;
-            case 3: left = true; up = true; break;
-            case 4: left = true; break;
-            case 5: left = true; down = true; break;
-            case 6: down = true; break;
+            case 1: right = true; up   = true; break;
+            case 2: up    = true; break;
+            case 3: left  = true; up   = true; break;
+            case 4: left  = true; break;
+            case 5: left  = true; down = true; break;
+            case 6: down  = true; break;
             case 7: right = true; down = true; break;
         }
     }
 
     private void updateAimAngle() {
         float dx =  (aimKnobX - aimOriginX);
-        float dy = -(aimKnobY - aimOriginY); // screen Y → game Y
+        float dy = -(aimKnobY - aimOriginY);
         float mag = (float) Math.sqrt(dx * dx + dy * dy);
 
         if (mag > AIM_RADIUS * DEADZONE) {
             lastAimAngleRad = (float) Math.atan2(dy, dx);
-            // Clamp knob visually
             if (mag > AIM_RADIUS) {
                 float nx = dx / mag * AIM_RADIUS;
                 float ny = dy / mag * AIM_RADIUS;
@@ -292,18 +297,14 @@ public class AndroidInputSource extends InputAdapter implements PlayerInputSourc
         }
     }
 
-    // ─── HUD Weapon Slot hit detection ────────────────────────────────────────
+    // ─── HUD slot hit detection ───────────────────────────────────────────────
 
-    /**
-     * Returns equipment slot index if the tap hits an equip-slot HUD tile
-     * (bottom-left area), or -1 if missed.
-     */
     private static int hitEquipSlot(int screenX, int screenY, int sh) {
-        int slotSize = com.mygame.tank.render.GameRenderer.EQUIP_SLOT_SIZE;
-        int slotGap  = com.mygame.tank.render.GameRenderer.EQUIP_SLOT_GAP;
-        int x0       = com.mygame.tank.render.GameRenderer.EQUIP_SLOT_X0;
-        int numSlots = com.mygame.tank.config.GameConfig.EQUIPMENT_SLOTS;
-        int slotY    = com.mygame.tank.render.GameRenderer.EQUIP_SLOT_Y;
+        int slotSize    = com.mygame.tank.render.GameRenderer.EQUIP_SLOT_SIZE;
+        int slotGap     = com.mygame.tank.render.GameRenderer.EQUIP_SLOT_GAP;
+        int x0          = com.mygame.tank.render.GameRenderer.EQUIP_SLOT_X0;
+        int numSlots    = com.mygame.tank.config.GameConfig.EQUIPMENT_SLOTS;
+        int slotY       = com.mygame.tank.render.GameRenderer.EQUIP_SLOT_Y;
         int slotYTop    = sh - slotY - slotSize;
         int slotYBottom = sh - slotY;
 
@@ -316,27 +317,17 @@ public class AndroidInputSource extends InputAdapter implements PlayerInputSourc
         return -1;
     }
 
-    /**
-     * Returns slot index (0-based) if the tap is inside a weapon-slot HUD tile,
-     * or -1 if the tap missed all slots.
-     *
-     * <p>Mirrors the position formula in {@link com.mygame.tank.render.GameRenderer}.
-     */
     private static int hitWeaponSlot(int screenX, int screenY, int sw, int sh) {
-        // HUD slots are WEAPON_SLOT_SIZE tall, sitting at slotY=16 from screen bottom.
-        // In raw screen coords (Y=0 at top): slot occupies
-        //   top    = sh - 16 - WEAPON_SLOT_SIZE
-        //   bottom = sh - 16
-        int slotSize = com.mygame.tank.render.GameRenderer.WEAPON_SLOT_SIZE;
-        int slotGap  = com.mygame.tank.render.GameRenderer.WEAPON_SLOT_GAP;
-        int numSlots = com.mygame.tank.config.GameConfig.DAMAGE_WEAPON_SLOTS;
+        int slotSize    = com.mygame.tank.render.GameRenderer.WEAPON_SLOT_SIZE;
+        int slotGap     = com.mygame.tank.render.GameRenderer.WEAPON_SLOT_GAP;
+        int numSlots    = com.mygame.tank.config.GameConfig.DAMAGE_WEAPON_SLOTS;
         int slotYTop    = sh - 16 - slotSize;
         int slotYBottom = sh - 16;
 
         if (screenY < slotYTop || screenY > slotYBottom) return -1;
 
-        int totalW  = numSlots * slotSize + (numSlots - 1) * slotGap;
-        int startX  = sw / 2 - totalW / 2;
+        int totalW = numSlots * slotSize + (numSlots - 1) * slotGap;
+        int startX = sw / 2 - totalW / 2;
 
         for (int i = 0; i < numSlots; i++) {
             int sx = startX + i * (slotSize + slotGap);
@@ -345,25 +336,24 @@ public class AndroidInputSource extends InputAdapter implements PlayerInputSourc
         return -1;
     }
 
-    // ─── Joystick state exposed for GameRenderer overlay ──────────────────────
+    // ─── State exposed for GameRenderer overlay ───────────────────────────────
 
     public boolean isMoveActive()  { return moveActive; }
-    /** Move joystick anchor X in screen coords (Y=0 at top). */
     public float getMoveOriginX()  { return moveOriginX; }
     public float getMoveOriginY()  { return moveOriginY; }
-    /** Move joystick knob X in screen coords. */
     public float getMoveKnobX()    { return moveKnobX; }
     public float getMoveKnobY()    { return moveKnobY; }
 
     public boolean isAimActive()   { return aimActive; }
-    /** Aim joystick anchor X in screen coords (Y=0 at top). */
     public float getAimOriginX()   { return aimOriginX; }
     public float getAimOriginY()   { return aimOriginY; }
-    /** Aim joystick knob X in screen coords. */
     public float getAimKnobX()     { return aimKnobX; }
     public float getAimKnobY()     { return aimKnobY; }
 
     public boolean isFireHeld()    { return fireHeld; }
+
+    /** Current split ratio in use (may differ from ControlsConfig if not yet refreshed). */
+    public float getSplitRatio()   { return splitRatio; }
 
     // ─── Widget helpers ───────────────────────────────────────────────────────
 
@@ -381,13 +371,10 @@ public class AndroidInputSource extends InputAdapter implements PlayerInputSourc
         return buttons;
     }
 
-    /**
-     * Equipment row at top-center — stays clear of both joystick zones.
-     */
     private void layoutEquipButtons(Stage stage) {
         float stageW = stage.getWidth();
         float stageH = stage.getHeight();
-        float rowY   = stageH - 80f; // near top
+        float rowY   = stageH - 80f;
 
         float equipStart = stageW / 2f - (equipButtons.length * 72f) / 2f;
         for (int i = 0; i < equipButtons.length; i++) {

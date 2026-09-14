@@ -179,6 +179,8 @@ public class HowToPlayScreen implements Screen {
 
     @Override
     public void show() {
+        Gdx.input.setInputProcessor(null);
+
         int sw = Gdx.graphics.getWidth();
         int sh = Gdx.graphics.getHeight();
 
@@ -520,34 +522,23 @@ public class HowToPlayScreen implements Screen {
     /**
      * Draws the Controls page's separator lines.
      *
-     * <p>Desktop keeps the original 3-column table (one solid rule under the
-     * header, faint rules under each row). Mobile switches to a vertical list
-     * of stacked cards — narrow portrait screens don't have enough horizontal
-     * room for 3 columns without cramming the "Effect" text — so instead of
-     * rule lines it draws a light card background per row, matching
-     * {@link #renderControlsText(float, float)} exactly.
+     * <p>Both desktop and mobile now share the same ruled-table style (one
+     * solid rule under the header, faint rules under each row). Mobile just
+     * drops the "Context" column — folding it into the "Control" cell — so
+     * it only needs 2 columns to fit a narrow portrait screen; see
+     * {@link #mobileControlsLayout(float, float, int)} for its geometry.
      */
     private void renderControlsLines(float vw, float vh) {
         boolean mobile = isMobile();
         String[][] data = mobile ? CONTROLS_DATA_MOBILE : CONTROLS_DATA;
 
-        if (mobile) {
-            ControlsLayout l = mobileControlsLayout(vw, vh, data.length);
-            for (int i = 0; i < data.length; i++) {
-                float y = l.topY - i * l.rowH;
-                shape.setColor(0.13f, 0.16f, 0.24f, 0.55f);
-                shape.rect(l.left, y - l.rowH + l.gap * 0.5f, l.right - l.left, l.rowH - l.gap);
-            }
-            return;
-        }
-
-        float startX = vw * 0.06f;
-        float startY = vh * 0.84f;
-        float tableRight = vw * 0.95f;
+        float startX      = vw * (mobile ? 0.05f : 0.06f);
+        float startY      = vh * (mobile ? 0.86f : 0.84f);
+        float tableRight  = vw * 0.95f;
 
         float tipLh        = fonts.body.getLineHeight();
         float bottomLimit  = btnBack.y + btnBack.height + tipLh * 0.8f;
-        float reservedTips = tipLh * 3.8f;
+        float reservedTips = mobile ? tipLh * 2.0f : tipLh * 3.8f;
         float headerH      = tipLh * 1.6f;
         float availableH   = startY - headerH - bottomLimit - reservedTips;
         float naturalRowH  = Math.min(fonts.body.getLineHeight() * 1.7f, vh * 0.065f);
@@ -566,24 +557,23 @@ public class HowToPlayScreen implements Screen {
         }
     }
 
-    /** Shared geometry for the mobile stacked-card Controls layout. */
+    /** Shared geometry for the mobile 2-column (Control / Effect) Controls table. */
     private static final class ControlsLayout {
-        float left, right, topY, rowH, gap;
+        float left, topY, rowH;
     }
 
     private ControlsLayout mobileControlsLayout(float vw, float vh, int rowCount) {
         ControlsLayout l = new ControlsLayout();
         l.left  = vw * 0.05f;
-        l.right = vw * 0.95f;
         float startY       = vh * 0.86f;
         float lh           = fonts.body.getLineHeight();
         float bottomLimit  = btnBack.y + btnBack.height + lh * 0.8f;
         float reservedTip  = lh * 2.0f; // single tip line reserved at the bottom on mobile
-        float availableH   = startY - bottomLimit - reservedTip;
-        l.gap  = 6f;
-        float natural = lh * 2.5f; // room for 2 lines of text per card (label + description)
-        l.rowH = Math.min(natural, Math.max(availableH / rowCount, lh * 1.6f));
-        l.topY = startY;
+        float headerH      = lh * 1.6f; // space reserved for header row + rule line
+        float availableH   = startY - headerH - bottomLimit - reservedTip;
+        float naturalRowH  = Math.min(fonts.body.getLineHeight() * 1.7f, vh * 0.065f);
+        l.rowH = Math.min(naturalRowH, Math.max(availableH / rowCount, fonts.body.getLineHeight() * 1.05f));
+        l.topY = startY - headerH * 0.55f; // == tableTop in renderControlsLines, for alignment
         return l;
     }
 
@@ -657,39 +647,47 @@ public class HowToPlayScreen implements Screen {
     }
 
     /**
-     * Mobile Controls layout: one stacked card per control instead of a 3-column
-     * table. Each card shows the control name on its own line (with an optional
-     * context tag) and the description directly below it, wrapped-free since it
-     * has the full card width to work with — this reads far better than cramming
-     * three columns into a narrow portrait screen.
+     * Mobile Controls layout: same ruled-table style as desktop, just with 2
+     * columns instead of 3 — "Control" and "Effect". The context tag (e.g.
+     * "[Inside Hub]") isn't given its own column on a narrow portrait screen;
+     * instead it's appended after the control name, matching how the tag
+     * reads inline in {@link #CONTROLS_DATA_MOBILE}.
      */
     private void renderControlsTextMobile(float vw, float vh, String[][] data) {
         ControlsLayout l = mobileControlsLayout(vw, vh, data.length);
-        float textX  = l.left + vw * 0.02f;
+        float startX = l.left;
+        float keyW   = vw * 0.42f;              // "Control" column width
+        float descX  = startX + keyW + vw * 0.02f; // "Effect" column start
+        float startY = vh * 0.86f;
         float lh     = fonts.body.getLineHeight();
 
+        // Column headers
+        fonts.body.setColor(C_SECTION);
+        fonts.body.draw(batch, "Control", startX, startY);
+        fonts.body.draw(batch, "Effect",  descX,  startY);
+
         for (int i = 0; i < data.length; i++) {
-            float cardTop = l.topY - i * l.rowH;
-            float labelY  = cardTop - l.gap * 0.5f - lh * 0.75f;
-            float descY   = labelY - lh * 1.05f;
+            // Baseline near the TOP of the row so the glyph body stays above
+            // this row's bottom rule line, matching the desktop table.
+            float y = l.topY - l.rowH * i - l.rowH * 0.22f;
 
             String ctx = data[i][0];
             fonts.body.setColor(C_KEY);
-            String label = ctx.isEmpty() ? data[i][1] : data[i][1] + "   [" + ctx + "]";
-            fonts.body.draw(batch, label, textX, labelY);
+            String label = ctx.isEmpty() ? data[i][1] : data[i][1] + "  [" + ctx + "]";
+            fonts.body.draw(batch, label, startX, y);
 
             fonts.body.setColor(C_BODY);
-            fonts.body.draw(batch, data[i][2], textX, descY);
+            fonts.body.draw(batch, data[i][2], descX, y);
         }
 
-        // ── Single tip line, anchored above the Back button ─────────────────────
-        float bottomLimit    = btnBack.y + btnBack.height + lh * 0.8f;
-        float lastCardBottom = l.topY - data.length * l.rowH;
-        float tipY = Math.max(lastCardBottom - lh * 0.8f, bottomLimit);
+        // ── Single tip line, anchored above the Back button ─────────────────
+        float bottomLimit = btnBack.y + btnBack.height + lh * 0.8f;
+        float lastRowY    = l.topY - l.rowH * data.length;
+        float tipY = Math.max(lastRowY - lh * 1.6f, bottomLimit);
         fonts.body.setColor(C_WARN);
         fonts.body.draw(batch,
             "TIP: hold the weapon icon, then tap a slot to switch weapons.",
-            textX, tipY);
+            startX, tipY);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -705,7 +703,7 @@ public class HowToPlayScreen implements Screen {
         float h = w * (9f / 16f);
         float x = (vw - w) / 2f;
         float labelHeadroom = fonts.body.getLineHeight() * 1.4f;
-        float tabBottom     = vh * 0.930f; // must match layoutWidgets() tabY
+        float tabBottom     = vh * (isMobile() ? 0.90f : 0.930f); // must match layoutWidgets() tabY
         float bottomLimit   = btnBack.y + btnBack.height + fonts.body.getLineHeight() * 1.2f;
         float availableH    = tabBottom - labelHeadroom - bottomLimit;
         if (h > availableH) h = availableH;
