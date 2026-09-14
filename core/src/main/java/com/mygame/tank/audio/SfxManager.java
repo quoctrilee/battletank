@@ -61,7 +61,7 @@ public class SfxManager {
 
     // ─── Fields ───────────────────────────────────────────────────────────────
 
-    private static final float DEFAULT_VOLUME = 0.8f;
+    public static final float DEFAULT_VOLUME = 0.8f;
 
     private final Map<WeaponType, SfxClip> weaponClips = new EnumMap<>(WeaponType.class);
     private final List<SfxClip> allClips = new ArrayList<>();
