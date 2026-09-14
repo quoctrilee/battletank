@@ -770,7 +770,7 @@ public class GameRenderer {
      * on Desktop.
      */
     public void setAndroidInputSource(
-            com.mygame.tank.controller.player.AndroidInputSource src) {
+        com.mygame.tank.controller.player.AndroidInputSource src) {
         this.androidInput = src;
     }
 
@@ -833,7 +833,6 @@ public class GameRenderer {
 
             // Android zone + joystick overlay
             if (androidInput != null) {
-                renderAndroidZones(sw, sh);
                 renderFloatingJoystick(
                     androidInput.isMoveActive(),
                     androidInput.getMoveOriginX(), androidInput.getMoveOriginY(),
@@ -1027,19 +1026,6 @@ public class GameRenderer {
     // ─── Android overlay ──────────────────────────────────────────────────────
 
     /**
-     * Draws a subtle horizontal divider line at the fire/joystick zone boundary.
-     */
-    private void renderAndroidZones(int sw, int sh) {
-        float split    = androidInput.getSplitRatio();
-        float dividerY = sh * split; // HUD coords: Y=0 at bottom, so bottom zone = [0, split*sh]
-        shapeRenderer.setColor(1f, 1f, 1f, 0.08f);
-        shapeRenderer.rect(0, dividerY - 1f, sw, 2f);
-        // Vertical divider in joystick zone
-        shapeRenderer.setColor(1f, 1f, 1f, 0.05f);
-        shapeRenderer.rect(sw / 2f - 1f, 0, 2f, dividerY);
-    }
-
-    /**
      * Draws zone labels (FIRE / MOVE / AIM) — called while hudBatch is open.
      */
     private void renderAndroidZoneLabels(int sw, int sh) {
@@ -1083,9 +1069,9 @@ public class GameRenderer {
      * @param color    tint color
      */
     private void renderFloatingJoystick(boolean active,
-            float originX, float originY,
-            float knobX,   float knobY,
-            float radius,  Color color) {
+                                        float originX, float originY,
+                                        float knobX,   float knobY,
+                                        float radius,  Color color) {
         if (!active) return;
 
         int sh = Gdx.graphics.getHeight();
@@ -1476,7 +1462,7 @@ public class GameRenderer {
         for (int i = 0; i < GameConfig.DAMAGE_WEAPON_SLOTS; i++) {
             WeaponType type = ws.getWeaponSlots()[i];
             if (type == null) continue;
-            
+
             int cx = cardStartX + i * (cardW + cardGap);
             com.badlogic.gdx.graphics.Texture icon = assets.weaponIcons.get(type);
             if (icon != null) {
